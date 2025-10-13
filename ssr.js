@@ -9,12 +9,19 @@
     map: $map,
     q: $q,
     render: R,
+    delay,
     dispatch,
     listen,
   }
 
+  function delay(x, $n, cb, s = 0) {
+    ;($n._T ??= {})[x] && clearTimeout($n._T[x])
+    $n._T[x] = setTimeout(cb, s)
+  }
+
   function fn(x, $n, v) {
     const b = v
+      .replace(/\@delay\(/g, '__at.delay(x, el, ()=>')
       .replace(/\@(\w+)\(/g, '__at.$1(')
       .replace(/\$(\w+)/g, 'store.$1')
 
