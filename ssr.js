@@ -13,6 +13,7 @@
     q: $q,
     render: R,
     delay,
+    destroy,
     dispatch,
     listen,
   }
@@ -20,6 +21,13 @@
   function delay(x, $n, cb, s = 0) {
     ;($n._T ??= {})[x] && clearTimeout($n._T[x])
     $n._T[x] = setTimeout(cb, s)
+  }
+
+  function destroy($n) {
+    $map($n, data_sel, destroy)
+    for (const k in $n._T ?? {}) clearTimeout($n._T[k])
+    for (const k in $n._F ?? {}) $n._F[k].abort()
+    for (const k in $n._E ?? {}) for (const cb in $n._E[k]) $n.removeEventListener(k, cb)
   }
 
   async function fetch($n, u, q = {}) {
@@ -200,6 +208,27 @@
     })
   })
 
+  listen($d, 'ssr:sse-patch-elements', ({detail}) => {
+    if (detail.data.lastIndexOf('<body', 2048) !== -1) {
+      destroy($d.body)
+      let [$p, $a] = [new DOMParser().parseFromString(detail.data, 'text/html')]
+      if (($a = $q($p, 'body'))) $d.body.innerHTML = $a.innerHTML
+      if (($a = $q($p, 'title'))) $map($d, 'title', ($n) => $n.replaceWith($n))
+      $map($p, 'script[nonce]', ($n) => $d.head.appendChild($n))
+      $map($p, 'style[nonce]', ($n) => $d.head.appendChild($n))
+    } else {
+      const $p = $d.createRange().createContextualFragment(detail.data)
+      if (detail.title) $d.title = detail.title
+      for (const $n of $p.children) {
+        const swap = ($n.dataset.swap || `replaceWith:#${$n.id}`).split(':', 2)
+        const $c = $q($d, swap[1])
+        destroy($c)
+        $c[swap[0]]($n)
+      }
+    }
+
+    dispatch($d, 'ssr:init')
+  })
   listen($d.body, 'click', () => {
   })
 
