@@ -49,6 +49,14 @@
         fn('init', $n, $n.dataset.init)()
       }
 
+      for (const attr of $n.attributes) {
+        const $el = /^@window/.test(attr.name) ? $w : $n
+        const e = attr.name.replace(/^@(window:)?/, '')
+        if (e === attr.name) continue
+        const cb = fn('on', $n, attr.value)
+        listen($el, e, (evt) => cb(evt) === false || R($n))
+      }
+
       if ($n.dataset.effect) {
         listen($d, 'ssr:render', fn('effect', $n, $n.dataset.effect))
       }

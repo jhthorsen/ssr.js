@@ -21,6 +21,7 @@
   <main role="document" class="container">
     <p data-init="console.log(@map(@q(document, 'main'), 'p', i => i));@render()"
        data-effect="console.log('effect')">Look in the console</p>
+    <p><button data-init @click="alert('@click is cool!')">Click me!</button></p>
   </main>
   <script src="./ssr.js"></script>
 </body>
