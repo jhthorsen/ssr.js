@@ -6,6 +6,9 @@
   const $q = ($p, s) => $p.querySelector(s)
 
   const at = {
+    get: fetch,
+    delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
+    post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
     map: $map,
     q: $q,
     render: R,
@@ -19,9 +22,53 @@
     $n._T[x] = setTimeout(cb, s)
   }
 
+  async function fetch($n, u, q = {}) {
+    ;($n._F ??= {})[u] && $n._F[u].abort()
+    const ac = $n._F[u] = new AbortController()
+    const url = new URL(u, location.href)
+    const s = getStore($n)
+
+    if (s) {
+      for (const k in s) {
+        if (!k.startsWith('_')) {
+          url.searchParams.append(k, JSON.stringify(s[k]).replace(/^"|"$/g, ''))
+        }
+      }
+    }
+
+    const $h = $q($d.head, 'meta[name=ssr-headers]')
+    const qh = $h ? fn('', $h, `return {${$h.content}}`)() : {}
+    qh['accept'] ??= 'text/event-stream, text/html, application/json'
+    qh['x-ssr'] ??= 'csr'
+    qh['x-source'] ??= $n.id ? `#{$n.id}` : `${$n.tagName.toLowerCase()}`
+
+    try {
+      const r = await $w.fetch(url, {
+        ...q,
+        headers: {...qh, ...(q.headers || {})},
+        signal: ac.signal,
+      })
+
+      const rh = Object.fromEntries(
+        [...r.headers].map(([k, v]) => [k.replace(/^x-sse-/, '').replace(/-/g, '_'), v]),
+      )
+
+      const ct = rh['content_type'] ?? ''
+      if (ct.startsWith('text/html')) {
+        const data = await r.text()
+        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {...rh, data}})
+      } else {
+        console.warn(`TODO ${ct}`)
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') return
+      console.error({url: url.toString(), d: q, error})
+    }
+  }
   function fn(x, $n, v) {
     const b = v
       .replace(/\@delay\(/g, '__at.delay(x, el, ()=>')
+      .replace(/\@(delete|get|fetch|post)\(/g, '__at.$1(el,')
       .replace(/\@(\w+)\(/g, '__at.$1(')
       .replace(/\$(\w+)/g, 'store.$1')
 
