@@ -15,6 +15,7 @@
     delay,
     destroy,
     dispatch,
+    j,
     listen,
   }
 
@@ -34,34 +35,16 @@
     ;($n._F ??= {})[u] && $n._F[u].abort()
     const ac = $n._F[u] = new AbortController()
     const url = new URL(u, location.href)
-    const s = getStore($n)
-
-    if (s) {
-      for (const k in s) {
-        if (!k.startsWith('_')) {
-          url.searchParams.append(k, JSON.stringify(s[k]).replace(/^"|"$/g, ''))
-        }
-      }
-    }
-
-    const $h = $q($d.head, 'meta[name=ssr-headers]')
-    const qh = $h ? fn('', $h, `return {${$h.content}}`)() : {}
-    qh['accept'] ??= 'text/event-stream, text/html, application/json'
-    qh['x-ssr'] ??= 'csr'
-    qh['x-source'] ??= $n.id ? `#{$n.id}` : `${$n.tagName.toLowerCase()}`
 
     try {
-      const r = await $w.fetch(url, {
-        ...q,
-        headers: {...qh, ...(q.headers || {})},
-        signal: ac.signal,
-      })
+      j(q.search ?? getStore($n) ?? {}, url.searchParams)
 
-      const rh = Object.fromEntries(
-        [...r.headers].map(([k, v]) => [k.replace(/^x-sse-/, '').replace(/-/g, '_'), v]),
-      )
+      const $h = $q($d.head, 'meta[name=ssr-headers]')
+      const qh = $h ? fn('', $h, `return {${$h.content}}`)() : {}
+      q.headers = j(qh, q.headers ?? new Headers())
 
-      const ct = rh['content_type'] ?? ''
+      const r = await $w.fetch(url, {...q, signal: ac.signal})
+      const ct = r.headers.get('content-type') ?? ''
       if (ct === 'text/event-stream') {
         const [d, rdr] = [new TextDecoder('utf-8'), r.body.getReader()]
         let [b, e] = ['', {}]
@@ -77,7 +60,7 @@
               e[k] ??= ''
               e[k] += v
             } else {
-              dispatch($n, 'ssr:sse-' + e.event, {bubbles: true, detail: {...rh, ...e}})
+              dispatch($n, 'ssr:sse-' + e.event, {bubbles: true, detail: e})
               e = {}
             }
             b = b.slice(i + 1)
@@ -85,7 +68,7 @@
         }
       } else if (ct.startsWith('text/html')) {
         const data = await r.text()
-        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {...rh, data}})
+        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {data}})
       } else {
         console.warn(`TODO ${ct}`)
       }
@@ -116,6 +99,15 @@
       if ($n._S && (k === null || has($n._S, k))) return $n._S
       $n = $n.parentNode
     }
+  }
+
+  function j(i, o = new FormData()) {
+    for (const k in i ?? {}) {
+      if (!k.startsWith('_')) {
+        o.append(k, JSON.stringify(i[k]).replace(/^"|"$/g, ''))
+      }
+    }
+    return o
   }
 
   function listen($n, e, cb) {
