@@ -94,6 +94,7 @@
       console.error({url: url.toString(), d: q, error})
     }
   }
+
   function fn(x, $n, v) {
     const b = v
       .replace(/\@delay\(/g, '__at.delay(x, el, ()=>')
@@ -229,10 +230,29 @@
 
     dispatch($d, 'ssr:init')
   })
-  listen($d.body, 'click', () => {
+
+  listen($d.body, 'click', (evt) => {
+    if (evt.target?.closest('button, input, select, textarea')) return
+
+    const $n = evt.target?.closest('[href]')
+    if (!$n || $n.dataset.takeover) return
+    for (const a of $n.attributes) {
+      if (a.name === '@click') return
+    }
+
+    const url = new URL($n.href || $n.getAttribute('href'), location.href)
+    if (url.origin !== location.origin) return // external link
+
+    if (location.pathname !== url.pathname || location.search !== url.search) {
+      history.pushState({}, null, url.pathname + url.search)
+    }
+
+    evt.preventDefault()
+    fetch($d.body, url.pathname + url.search, {})
   })
 
   listen($w, 'popstate', () => {
+    fetch($d.body, location.href, {})
   })
 
   dispatch($d, 'ssr:init')
