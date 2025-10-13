@@ -54,7 +54,28 @@
       )
 
       const ct = rh['content_type'] ?? ''
-      if (ct.startsWith('text/html')) {
+      if (ct === 'text/event-stream') {
+        const [d, rdr] = [new TextDecoder('utf-8'), r.body.getReader()]
+        let [b, e] = ['', {}]
+        for (;;) {
+          const {done, value} = await rdr.read()
+          if (done) break
+          b += d.decode(value, {stream: true})
+          for (;;) {
+            const i = b.indexOf('\n')
+            if (i < 0) break
+            if (i) {
+              const [k, v] = b.slice(0, i).split(/:\s/, 2)
+              e[k] ??= ''
+              e[k] += v
+            } else {
+              dispatch($n, 'ssr:sse-' + e.event, {bubbles: true, detail: {...rh, ...e}})
+              e = {}
+            }
+            b = b.slice(i + 1)
+          }
+        }
+      } else if (ct.startsWith('text/html')) {
         const data = await r.text()
         dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {...rh, data}})
       } else {
