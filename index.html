@@ -22,6 +22,11 @@
     <p data-init="console.log(@map(@q(document, 'main'), 'p', i => i));@render()"
        data-effect="console.log('effect')">Look in the console</p>
     <p><button data-init @click="alert('@click is cool!')">Click me!</button></p>
+
+    <p data-init="$x=42">
+      <a href="#add" data-init @click="$x++">Add</a>
+      <span data-effect="el.textContent = $x"></span>
+    </p>
   </main>
   <script src="./ssr.js"></script>
 </body>

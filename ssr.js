@@ -1,6 +1,7 @@
 ;(function ($w, $d) {
   const data_sel = '[data-init], [data-bind], [data-effect]'
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
+  const has = Object.hasOwn
   const $map = ($p, s, cb) => [].map.call($p.querySelectorAll(s), cb)
   const $q = ($p, s) => $p.querySelector(s)
 
@@ -18,11 +19,18 @@
       .replace(/\$(\w+)/g, 'store.$1')
 
     try {
-      const s = /\bstore\.\w/.test(b) ? 'TODO' : null
+      const s = /\bstore\.\w/.test(b) ? store($n) : null
       const cb = new Function('x', 'el', '__at', 'store', 'evt', b)
       return (e) => cb(x, $n, at, s, e)
     } catch (error) {
       console.error({n: $n, b, error})
+    }
+  }
+
+  function getStore($n, k = null) {
+    while ($n) {
+      if ($n._S && (k === null || has($n._S, k))) return $n._S
+      $n = $n.parentNode
     }
   }
 
@@ -36,6 +44,32 @@
       dispatch($d, 'ssr:render')
       R.rendered = true
       delete R.id
+    })
+  }
+
+  function store($n) {
+    return $n._S ??= new Proxy({}, {
+      get(o, k) {
+        if (has(o, k)) return o[k]
+        const s = getStore($n.parentNode)
+        return s ? s[k] : undefined // Will continue to traverse upwards the tree
+      },
+      set(o, k, v) {
+        if (o[k] === v || !R.rendered) {
+          o[k] = v // Do not traverse the tree or call render() when it's the same value
+        } else if (has(o, k)) {
+          o[k] = v
+          R($n)
+        } else {
+          const s = getStore($n.parentNode)
+          if (s) {
+            s[k] = v // Will continue to traverse upwards the tree
+          } else {
+            console.error({error: 'No stores with the given key', k, v})
+          }
+        }
+        return true
+      },
     })
   }
 
