@@ -98,6 +98,34 @@
         listen($el, e, (evt) => cb(evt) === false || R($n))
       }
 
+      if ($n.dataset.bind) {
+        const k = $n.dataset.bind.replace(/^\s*\$/, '')
+        const s = getStore($n, k) || store($n)
+        s[k] ??= $n.value
+
+        if ($n.type === 'checkbox' || $n.type === 'radio' || $n.tagName == 'SELECT') {
+          listen($n, 'change', () => {
+            const b = !$n.hasAttribute('value')
+            if (s[k] instanceof Set) {
+              s[k][$n.checked ? 'add' : 'delete']($n.value)
+              R($n) // Manual render, since the store can't detect changes inside the Set()
+            } else {
+              s[k] = $n.checked ? (b ? true : $n.value) : (b ? false : '')
+            }
+          })
+          listen($d, 'ssr:render', () => {
+            if (s[k] instanceof Set) {
+              $n.checked = s[k].has($n.value)
+            } else {
+              $n.checked = s[k] === true || s[k] == $n.value // Want to match numbers as well as strings
+            }
+          })
+        } else {
+          listen($n, 'input', () => (s[k] = $n.value))
+          listen($d, 'ssr:render', () => $n.value = s[k])
+        }
+      }
+
       if ($n.dataset.effect) {
         listen($d, 'ssr:render', fn('effect', $n, $n.dataset.effect))
       }

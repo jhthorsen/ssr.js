@@ -28,6 +28,14 @@
       <span data-effect="el.textContent = $x"></span>,
       delayed: <span data-effect="@delay(el.textContent = $x, 500)"></span>
     </p>
+
+    <form data-init="$v=''">
+      <fieldset role="group">
+        <input type="text" data-bind="v" placeholder="Type something">
+        <button type="button" data-init @click="$v=''">Clear</button>
+      </fieldset>
+      <span data-effect="el.textContent = $v.toUpperCase()"></span>
+    </form>
   </main>
   <script src="./ssr.js"></script>
 </body>
