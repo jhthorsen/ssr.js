@@ -26,7 +26,7 @@
     <p data-init="$x=42">
       <a href="#add" data-init @click="$x++">Add</a>
       <span data-effect="el.textContent = $x"></span>,
-      delayed: <span data-effect="@delay(el.textContent = $x, 500)"></span>
+      debounced: <span data-effect="@debounce(el.textContent = $x, 500)"></span>
     </p>
 
     <form data-init="$v=''">

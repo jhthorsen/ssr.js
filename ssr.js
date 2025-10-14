@@ -9,7 +9,7 @@
     class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
     delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
-    delay,
+    debounce,
     destroy,
     dispatch,
     get: fetch,
@@ -20,7 +20,7 @@
     render: R,
   }
 
-  function delay(x, $n, cb, s = 0) {
+  function debounce(x, $n, cb, s = 0) {
     ;($n._T ??= {})[x] && clearTimeout($n._T[x])
     $n._T[x] = setTimeout(cb, s)
   }
@@ -81,7 +81,7 @@
 
   function fn(x, $n, v) {
     const b = v
-      .replace(/\@delay\(/g, '__at.delay(x, el, ()=>')
+      .replace(/\@debounce\(/g, '__at.debounce(x, el, ()=>')
       .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
       .replace(/\@(\w+)\(/g, '__at.$1(')
       .replace(/\$(\w+)/g, 'store.$1')
