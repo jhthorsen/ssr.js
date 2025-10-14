@@ -4,6 +4,8 @@
   const has = Object.hasOwn
   const $map = ($p, s, cb) => [].map.call($p.querySelectorAll(s), cb)
   const $q = ($p, s) => $p.querySelector(s)
+  const listen = ($n, e, cb) => $n.addEventListener(e, cb)
+  const unlisten = ($n, e, cb) => $n.removeEventListener(e, cb)
 
   const at = {
     ready: false,
@@ -18,6 +20,7 @@
     listen,
     map: $map,
     q: $q,
+    unlisten,
   }
 
   function debounce(x, $n, cb, s = 0) {
@@ -27,9 +30,9 @@
 
   function destroy($n) {
     $map($n, data_sel, destroy)
+    if ($n.dataset.destroy) fn('init', $n, $n.dataset.destroy)()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
     for (const k in $n._F ?? {}) $n._F[k].abort()
-    for (const k in $n._E ?? {}) for (const cb in $n._E[k]) $n.removeEventListener(k, cb)
   }
 
   async function fetch($n, u, q = {}) {
@@ -112,11 +115,6 @@
     return o
   }
 
-  function listen($n, e, cb) {
-    ;(($n._E ??= {})[e] ??= new Set()).add(cb)
-    $n.addEventListener(e, cb)
-  }
-
   function R($n, ks) {
     const q = (R.q ??= new Set())
     $n = $store($n)
@@ -182,11 +180,10 @@
       }
 
       for (const attr of $n.attributes) {
-        const $t = /^@window/.test(attr.name) ? $w : $n
-        const e = attr.name.replace(/^@(window:)?/, '')
+        const e = attr.name.replace(/^@/, '')
         if (e == attr.name) continue
         const cb = fn('on', $n, attr.value)
-        listen($t, e, (evt) => cb(evt) === false || R($n, $n._C.keys()))
+        listen($n, e, (evt) => cb(evt) === false || R($n, $n._C.keys()))
       }
 
       if ($n.dataset.bind) {
