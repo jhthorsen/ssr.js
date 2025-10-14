@@ -1,4 +1,7 @@
 ;(function ($w, $d) {
+  const stores = {}
+  $w.store = (n) => stores[n]
+
   const data_sel = '[data-init], [data-bind], [data-effect]'
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
@@ -8,14 +11,16 @@
   const unlisten = ($n, e, cb) => $n.removeEventListener(e, cb)
 
   const at = {
-    ready: false,
     class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
     delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
+    get: fetch,
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
-    debounce,
+    debounce: (k, $n, cb, s) => {
+      ;($n._T ??= {})[k] && clearTimeout($n._T[k])
+      $n._T[k] = setTimeout(cb, s)
+    },
     destroy,
     dispatch,
-    get: fetch,
     j,
     listen,
     map: $map,
@@ -23,30 +28,24 @@
     unlisten,
   }
 
-  function debounce(x, $n, cb, s = 0) {
-    ;($n._T ??= {})[x] && clearTimeout($n._T[x])
-    $n._T[x] = setTimeout(cb, s)
-  }
-
   function destroy($n) {
     $map($n, data_sel, destroy)
-    if ($n.dataset.destroy) fn('init', $n, $n.dataset.destroy)()
+    if ($n.dataset.destroy) fn('destroy', $n, $n.dataset.destroy)()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
     for (const k in $n._F ?? {}) $n._F[k].abort()
   }
 
   async function fetch($n, u, q = {}) {
     ;($n._F ??= {})[u] && $n._F[u].abort()
-    const ac = $n._F[u] = new AbortController()
     const url = new URL(u, location.href)
+    j(q.search ?? $n._S ?? {}, url.searchParams)
+
+    const $h = $q($d.head, 'meta[name=ssr-headers]')
+    const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
+    q.headers = j(qh, q.headers ?? new Headers())
 
     try {
-      j(q.search ?? $store($n)?._S ?? {}, url.searchParams)
-
-      const $h = $q($d.head, 'meta[name=ssr-headers]')
-      const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
-      q.headers = j(qh, q.headers ?? new Headers())
-
+      const ac = $n._F[u] = new AbortController()
       const r = await $w.fetch(url, {...q, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
       if (ct == 'text/event-stream') {
@@ -64,7 +63,7 @@
               e[k] ??= ''
               e[k] += v
             } else {
-              dispatch($n, 'ssr:sse-' + e.event, {bubbles: true, detail: e})
+              dispatch($d, 'ssr:sse-' + e.event, {detail: e})
               e = {}
             }
             b = b.slice(i + 1)
@@ -78,62 +77,35 @@
       }
     } catch (error) {
       if (error.name == 'AbortError') return
+      setTimeout(() => $n.parentNode && fetch($n, u, q), 3000)
       console.error({url: url.toString(), d: q, error})
     }
   }
 
-  function fn(x, $n, v) {
-    const b = v
-      .replace(/\@debounce\(/g, '__at.debounce(x, el, ()=>')
+  function fn(k, $n, v, r = (x) => x) {
+    const b = r(v)
+      .replace(/\$(\w+)\b/g, 'store.$1')
+      .replace(/\@debounce\(/g, '__at.debounce(__k, el, ()=>')
       .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
-      .replace(/\@(class|delete|get|fetch|post|ready)\b/g, '__at.$1')
-      .replace(/\@(\w+)\(/g, '__at.$1(')
-      .replace(/\$(\w+)/g, (_, k) => {
-        $n._C.set(k, false)
-        return `store.${k}`
-      })
+      .replace(/\@(\w+)\b/g, '__at.$1')
 
     try {
-      const s = /\bstore\b/.test(b) && (x == 'init' ? store($n) : $store($n)?._S)
-      const cb = new Function('x', 'el', '__at', 'store', 'evt', b)
-      return (e) => cb(x, $n, at, s, e)
+      const cb = new Function('el', 'store', '__at', '__k', 'evt', b)
+      $n.dataset[k] = b
+      return (e) => cb($n, $n._S, at, k, e)
     } catch (error) {
-      console.error({n: $n, b, error})
+      console.error(error, $n, b)
     }
   }
 
   function j(i, o = new FormData()) {
     for (const k in i ?? {}) {
       if (!k.startsWith('_')) {
-        if (typeof i[k].values == 'function') {
-          o.append(k, JSON.stringify([...i[k].values()]).replace(/^"|"$/g, ''))
-        } else {
-          o.append(k, JSON.stringify(i[k]).replace(/^"|"$/g, ''))
-        }
+        const v = typeof i[k].values == 'function' ? [...i[k].values()] : i[k]
+        o.append(k, JSON.stringify(v).replace(/^"|"$/g, ''))
       }
     }
     return o
-  }
-
-  function R($n, ks) {
-    const q = (R.q ??= new Set())
-    $n = $store($n)
-    q.add($n)
-
-    const nd = ($n._C ??= new Set())
-    for (const k of ks) {
-      if (!nd.get(k)) $map($n, data_sel, ($c) => (!$c._C || $c._C.has(k)) && q.add($c))
-      nd.set(k, true)
-    }
-
-    R.id ??= $w.requestAnimationFrame(() => {
-      const q = new Set(R.q)
-      R.q.clear()
-      delete R.id
-      for (const $v of q.values()) dispatch($v, 'ssr:render')
-      for (const $v of q.values()) for (const k of $v._C.keys()) $v._C.set(k, false)
-      at.ready = true
-    })
   }
 
   function script($n) {
@@ -143,61 +115,64 @@
     $n.remove()
   }
 
-  function $store($n, k = null) {
-    while ($n) {
-      if ($n._S && (k === null || has($n._S, k))) return $n
-      $n = $n.parentNode
-    }
-  }
-
-  function store($n) {
-    return $n._S ??= new Proxy({}, {
-      get(o, k) {
-        return has(o, k) ? o[k] : $store($n.parentNode, k)?._S[k]
-      },
-      set(o, k, v) {
-        if (has(o, k) || !at.ready) {
-          if (o[k] !== v) R($n, [k])
-          o[k] = v
-        } else {
-          const $s = $store($n.parentNode, k)
-          if (!$s) return console.error({error: 'No stores with the given key', k, v})
-          $s._S[k] = v // Calls set() on the parent store
-        }
-        return true
-      },
-    })
-  }
-
   listen($d, 'ssr:init', (evt) => {
     $map(evt.target, data_sel, ($n) => {
-      if ($n._C) return
-      $n._C = new Map()
+      if ($n._S) return
 
+      // Create a store
       if ($n.dataset.init) {
-        at.ready = false
+        const d = new Set()
+        d.render = (k) => {
+          d.add(k)
+          d._r ??= $w.requestAnimationFrame(() => {
+            dispatch($n, 'ssr:render')
+            $map($n, data_sel, ($c) => dispatch($c, 'ssr:render'))
+            d.clear()
+            d.r = true
+            delete d._r
+          })
+        }
+
+        const u = (kv) => kv.some((k) => d.has(k))
+        $n._S = new Proxy(stores[$n.id] ?? {}, {
+          get: (o, k) => k == '_D' ? d : k == '_U' ? u : o[k],
+          set(o, k, v) {
+            if (d.r && !has(o, k)) throw `${k} is not defined`
+            if (!d.r || o[k] !== v) {
+              o[k] = v
+              d.render(k)
+            }
+            return true
+          },
+        })
+
+        if ($n.id) stores[$n.id] = $n._S
         fn('init', $n, $n.dataset.init)()
       }
 
-      for (const attr of $n.attributes) {
-        const e = attr.name.replace(/^@/, '')
-        if (e == attr.name) continue
-        const cb = fn('on', $n, attr.value)
-        listen($n, e, (evt) => cb(evt) === false || R($n, $n._C.keys()))
+      let [$p, s] = [$n]
+      while ($p && !$n._S) {
+        if ($p._S) s = $n._S = $p._S
+        $p = $p.parentNode
       }
 
+      // Listen for @click and friends
+      for (const attr of $n.attributes) {
+        const e = attr.name.replace(/^@/, '')
+        if (e != attr.name) listen($n, e, fn('on', $n, attr.value))
+      }
+
+      // Two way binding
       if ($n.dataset.bind) {
         const k = $n.dataset.bind.replace(/^\s*\$/, '')
-        const s = $store($n, k)?._S || store($n)
         s[k] ??= $n.value
-        $n._C.set(k, false)
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
           listen($n, 'change', () => {
             const b = !$n.hasAttribute('value')
             if (s[k] instanceof Set) {
               s[k][$n.checked ? 'add' : 'delete']($n.value)
-              R($n, [k]) // Manual render, since the store can't detect changes inside Set()
+              s._D.render(k)
             } else {
               s[k] = $n.checked ? (b ? true : $n.value) : (b ? false : '')
             }
@@ -206,7 +181,7 @@
             if (s[k] instanceof Set) {
               $n.checked = s[k].has($n.value)
             } else {
-              $n.checked = s[k] === true || s[k] == $n.value // Want to match numbers as well as strings
+              $n.checked = s[k] === true || s[k] == $n.value // Want to match numbers and strings
             }
           })
         } else {
@@ -215,8 +190,16 @@
         }
       }
 
+      // Run effects
       if ($n.dataset.effect) {
-        listen($n, 'ssr:render', fn('effect', $n, $n.dataset.effect))
+        const cb = fn('effect', $n, $n.dataset.effect, (x) => {
+          const u = x.replaceAll(/@use\(/g, 'store._U(')
+          if (u !== x) return u
+          const ks = Array.from(x.matchAll(/\$(\w+)(?!\s*=)/g), (m) => `'${m[1]}'`).join(',')
+          return `store._U([${ks}])&&(${x})`
+        })
+
+        listen($n, 'ssr:render', cb)
       }
     })
   })
@@ -232,7 +215,6 @@
       $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
     } else {
       const $p = $d.createRange().createContextualFragment(detail.data)
-      if (detail.title) $d.title = detail.title
       $map($p, 'script[nonce]', script)
       $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
       for (const $c of $p.children) {
