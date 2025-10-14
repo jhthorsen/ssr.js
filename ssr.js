@@ -17,7 +17,6 @@
     listen,
     map: $map,
     q: $q,
-    render: R,
   }
 
   function debounce(x, $n, cb, s = 0) {
@@ -38,7 +37,7 @@
     const url = new URL(u, location.href)
 
     try {
-      j(q.search ?? getStore($n) ?? {}, url.searchParams)
+      j(q.search ?? $store($n)?._S ?? {}, url.searchParams)
 
       const $h = $q($d.head, 'meta[name=ssr-headers]')
       const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
@@ -85,21 +84,17 @@
       .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
       .replace(/\@(class|delete|get|fetch|post)\b/g, '__at.$1')
       .replace(/\@(\w+)\(/g, '__at.$1(')
-      .replace(/\$(\w+)/g, 'store.$1')
+      .replace(/\$(\w+)/g, (_, k) => {
+        $n._C.set(k, false)
+        return `store.${k}`
+      })
 
     try {
-      const s = /\bstore\.\w/.test(b) ? store($n) : null
+      const s = /\bstore\b/.test(b) && (x == 'init' ? store($n) : $store($n)?._S)
       const cb = new Function('x', 'el', '__at', 'store', 'evt', b)
       return (e) => cb(x, $n, at, s, e)
     } catch (error) {
       console.error({n: $n, b, error})
-    }
-  }
-
-  function getStore($n, k = null) {
-    while ($n) {
-      if ($n._S && (k === null || has($n._S, k))) return $n._S
-      $n = $n.parentNode
     }
   }
 
@@ -117,34 +112,47 @@
     $n.addEventListener(e, cb)
   }
 
-  function R() {
+  function R($n, ks) {
+    const q = (R.q ??= new Set())
+    $n = $store($n)
+    q.add($n)
+
+    const nd = ($n._C ??= new Set())
+    for (const k of ks) {
+      if (!nd.get(k)) $map($n, data_sel, ($c) => (!$c._C || $c._C.has(k)) && q.add($c))
+      nd.set(k, true)
+    }
+
     R.id ??= $w.requestAnimationFrame(() => {
-      dispatch($d, 'ssr:render')
-      R.rendered = true
+      const q = new Set(R.q)
+      R.q.clear()
       delete R.id
+      for (const $v of q.values()) dispatch($v, 'ssr:render')
+      for (const $v of q.values()) for (const k of $v._C.keys()) $v._C.set(k, false)
+      R.rendered = true
     })
+  }
+
+  function $store($n, k = null) {
+    while ($n) {
+      if ($n._S && (k === null || has($n._S, k))) return $n
+      $n = $n.parentNode
+    }
   }
 
   function store($n) {
     return $n._S ??= new Proxy({}, {
       get(o, k) {
-        if (has(o, k)) return o[k]
-        const s = getStore($n.parentNode)
-        return s ? s[k] : undefined // Will continue to traverse upwards the tree
+        return has(o, k) ? o[k] : $store($n.parentNode, k)?._S[k]
       },
       set(o, k, v) {
-        if (o[k] === v || !R.rendered) {
-          o[k] = v // Do not traverse the tree or call render() when it's the same value
-        } else if (has(o, k)) {
+        if (has(o, k) || !R.rendered) {
+          if (o[k] !== v) R($n, [k])
           o[k] = v
-          R($n)
         } else {
-          const s = getStore($n.parentNode)
-          if (s) {
-            s[k] = v // Will continue to traverse upwards the tree
-          } else {
-            console.error({error: 'No stores with the given key', k, v})
-          }
+          const $s = $store($n.parentNode, k)
+          if (!$s) return console.error({error: 'No stores with the given key', k, v})
+          $s._S[k] = v // Calls set() on the parent store
         }
         return true
       },
@@ -154,37 +162,38 @@
   listen($d, 'ssr:init', (evt) => {
     R.rendered = false
     $map(evt.target, data_sel, ($n) => {
-      if ($n._E) return
-      $n._E = {}
+      if ($n._C) return
+      $n._C = new Map()
 
       if ($n.dataset.init) {
         fn('init', $n, $n.dataset.init)()
       }
 
       for (const attr of $n.attributes) {
-        const $el = /^@window/.test(attr.name) ? $w : $n
+        const $t = /^@window/.test(attr.name) ? $w : $n
         const e = attr.name.replace(/^@(window:)?/, '')
         if (e == attr.name) continue
         const cb = fn('on', $n, attr.value)
-        listen($el, e, (evt) => cb(evt) === false || R($n))
+        listen($t, e, (evt) => cb(evt) === false || R($n, $n._C.keys()))
       }
 
       if ($n.dataset.bind) {
         const k = $n.dataset.bind.replace(/^\s*\$/, '')
-        const s = getStore($n, k) || store($n)
+        const s = $store($n, k)?._S || store($n)
         s[k] ??= $n.value
+        $n._C.set(k, false)
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
           listen($n, 'change', () => {
             const b = !$n.hasAttribute('value')
             if (s[k] instanceof Set) {
               s[k][$n.checked ? 'add' : 'delete']($n.value)
-              R($n) // Manual render, since the store can't detect changes inside the Set()
+              R($n, [k]) // Manual render, since the store can't detect changes inside Set()
             } else {
               s[k] = $n.checked ? (b ? true : $n.value) : (b ? false : '')
             }
           })
-          listen($d, 'ssr:render', () => {
+          listen($n, 'ssr:render', () => {
             if (s[k] instanceof Set) {
               $n.checked = s[k].has($n.value)
             } else {
@@ -193,12 +202,12 @@
           })
         } else {
           listen($n, 'input', () => (s[k] = $n.value))
-          listen($d, 'ssr:render', () => $n.value = s[k])
+          listen($n, 'ssr:render', () => $n.value = s[k])
         }
       }
 
       if ($n.dataset.effect) {
-        listen($d, 'ssr:render', fn('effect', $n, $n.dataset.effect))
+        listen($n, 'ssr:render', fn('effect', $n, $n.dataset.effect))
       }
     })
   })
