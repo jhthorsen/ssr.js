@@ -41,7 +41,7 @@
       j(q.search ?? getStore($n) ?? {}, url.searchParams)
 
       const $h = $q($d.head, 'meta[name=ssr-headers]')
-      const qh = $h ? fn('', $h, `return {${$h.content}}`)() : {}
+      const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
       q.headers = j(qh, q.headers ?? new Headers())
 
       const r = await $w.fetch(url, {...q, signal: ac.signal})
@@ -83,6 +83,7 @@
     const b = v
       .replace(/\@debounce\(/g, '__at.debounce(x, el, ()=>')
       .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
+      .replace(/\@(class|delete|get|fetch|post)\b/g, '__at.$1')
       .replace(/\@(\w+)\(/g, '__at.$1(')
       .replace(/\$(\w+)/g, 'store.$1')
 
