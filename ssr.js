@@ -138,6 +138,13 @@
     })
   }
 
+  function script($n) {
+    const $s = $d.createElement('script')
+    ;['nonce', 'textContent'].map((k) => $s[k] = $n[k])
+    $d.body.appendChild($s)
+    $n.remove()
+  }
+
   function $store($n, k = null) {
     while ($n) {
       if ($n._S && (k === null || has($n._S, k))) return $n
@@ -222,17 +229,20 @@
       destroy($d.body)
       let [$p, $a] = [new DOMParser().parseFromString(detail.data, 'text/html')]
       if (($a = $q($p, 'body'))) $d.body.innerHTML = $a.innerHTML
-      if (($a = $q($p, 'title'))) $map($d, 'title', ($n) => $n.replaceWith($n))
-      $map($p, 'script[nonce]', ($n) => $d.head.appendChild($n))
-      $map($p, 'style[nonce]', ($n) => $d.head.appendChild($n))
+      if (($a = $q($p, 'title'))) $map($d, 'title', ($c) => $c.replaceWith($c))
+      $map($d, 'script[nonce], style[nonce]', ($c) => $c.remove())
+      $map($p, 'script[nonce]', script)
+      $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
     } else {
       const $p = $d.createRange().createContextualFragment(detail.data)
       if (detail.title) $d.title = detail.title
-      for (const $n of $p.children) {
-        const swap = ($n.dataset.swap || `replaceWith:#${$n.id}`).split(':', 2)
-        const $c = $q($d, swap[1])
-        destroy($c)
-        $c[swap[0]]($n)
+      $map($p, 'script[nonce]', script)
+      $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
+      for (const $c of $p.children) {
+        const swap = ($c.dataset.swap || `replaceWith:#${$c.id}`).split(':', 2)
+        const $o = $q($d, swap[1])
+        destroy($o)
+        $o[swap[0]]($c)
       }
     }
 
