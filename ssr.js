@@ -6,6 +6,7 @@
   const $q = ($p, s) => $p.querySelector(s)
 
   const at = {
+    ready: false,
     class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
     delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
@@ -82,7 +83,7 @@
     const b = v
       .replace(/\@debounce\(/g, '__at.debounce(x, el, ()=>')
       .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
-      .replace(/\@(class|delete|get|fetch|post)\b/g, '__at.$1')
+      .replace(/\@(class|delete|get|fetch|post|ready)\b/g, '__at.$1')
       .replace(/\@(\w+)\(/g, '__at.$1(')
       .replace(/\$(\w+)/g, (_, k) => {
         $n._C.set(k, false)
@@ -129,7 +130,7 @@
       delete R.id
       for (const $v of q.values()) dispatch($v, 'ssr:render')
       for (const $v of q.values()) for (const k of $v._C.keys()) $v._C.set(k, false)
-      R.rendered = true
+      at.ready = true
     })
   }
 
@@ -146,7 +147,7 @@
         return has(o, k) ? o[k] : $store($n.parentNode, k)?._S[k]
       },
       set(o, k, v) {
-        if (has(o, k) || !R.rendered) {
+        if (has(o, k) || !at.ready) {
           if (o[k] !== v) R($n, [k])
           o[k] = v
         } else {
@@ -160,12 +161,12 @@
   }
 
   listen($d, 'ssr:init', (evt) => {
-    R.rendered = false
     $map(evt.target, data_sel, ($n) => {
       if ($n._C) return
       $n._C = new Map()
 
       if ($n.dataset.init) {
+        at.ready = false
         fn('init', $n, $n.dataset.init)()
       }
 
