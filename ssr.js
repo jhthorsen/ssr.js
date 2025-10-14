@@ -6,17 +6,18 @@
   const $q = ($p, s) => $p.querySelector(s)
 
   const at = {
-    get: fetch,
+    class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
     delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
-    map: $map,
-    q: $q,
-    render: R,
     delay,
     destroy,
     dispatch,
+    get: fetch,
     j,
     listen,
+    map: $map,
+    q: $q,
+    render: R,
   }
 
   function delay(x, $n, cb, s = 0) {
@@ -81,7 +82,7 @@
   function fn(x, $n, v) {
     const b = v
       .replace(/\@delay\(/g, '__at.delay(x, el, ()=>')
-      .replace(/\@(delete|get|fetch|post)\(/g, '__at.$1(el,')
+      .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
       .replace(/\@(\w+)\(/g, '__at.$1(')
       .replace(/\$(\w+)/g, 'store.$1')
 
