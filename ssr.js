@@ -46,7 +46,7 @@
 
       const r = await $w.fetch(url, {...q, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
-      if (ct === 'text/event-stream') {
+      if (ct == 'text/event-stream') {
         const [d, rdr] = [new TextDecoder('utf-8'), r.body.getReader()]
         let [b, e] = ['', {}]
         for (;;) {
@@ -74,7 +74,7 @@
         console.warn(`TODO ${ct}`)
       }
     } catch (error) {
-      if (error.name === 'AbortError') return
+      if (error.name == 'AbortError') return
       console.error({url: url.toString(), d: q, error})
     }
   }
@@ -163,7 +163,7 @@
       for (const attr of $n.attributes) {
         const $el = /^@window/.test(attr.name) ? $w : $n
         const e = attr.name.replace(/^@(window:)?/, '')
-        if (e === attr.name) continue
+        if (e == attr.name) continue
         const cb = fn('on', $n, attr.value)
         listen($el, e, (evt) => cb(evt) === false || R($n))
       }
@@ -173,7 +173,7 @@
         const s = getStore($n, k) || store($n)
         s[k] ??= $n.value
 
-        if ($n.type === 'checkbox' || $n.type === 'radio' || $n.tagName == 'SELECT') {
+        if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
           listen($n, 'change', () => {
             const b = !$n.hasAttribute('value')
             if (s[k] instanceof Set) {
@@ -228,9 +228,9 @@
     if (evt.target?.closest('button, input, select, textarea')) return
 
     const $n = evt.target?.closest('[href]')
-    if (!$n || $n.dataset.takeover) return
+    if (!$n || $n.target == '_top') return
     for (const a of $n.attributes) {
-      if (a.name === '@click') return
+      if (a.name == '@click') return
     }
 
     const url = new URL($n.href || $n.getAttribute('href'), location.href)
