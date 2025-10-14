@@ -102,7 +102,11 @@
   function j(i, o = new FormData()) {
     for (const k in i ?? {}) {
       if (!k.startsWith('_')) {
-        o.append(k, JSON.stringify(i[k]).replace(/^"|"$/g, ''))
+        if (typeof i[k].values == 'function') {
+          o.append(k, JSON.stringify([...i[k].values()]).replace(/^"|"$/g, ''))
+        } else {
+          o.append(k, JSON.stringify(i[k]).replace(/^"|"$/g, ''))
+        }
       }
     }
     return o
