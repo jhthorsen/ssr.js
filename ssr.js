@@ -76,9 +76,9 @@
         console.warn(`TODO ${ct}`)
       }
     } catch (error) {
-      if (error.name == 'AbortError') return
-      setTimeout(() => $n.parentNode && fetch($n, u, q), 3000)
-      console.error({url: url.toString(), d: q, error})
+      if (error.name != 'AbortError') {
+        dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {q, u, error}})
+      }
     }
   }
 
@@ -202,6 +202,11 @@
         listen($n, 'ssr:render', cb)
       }
     })
+  })
+
+  listen($d, 'ssr:fetch-error', (evt) => {
+    const d = evt.detail
+    setTimeout(() => evt.target.parentNode && fetch(evt.target, d.u, d.q), 3000)
   })
 
   listen($d, 'ssr:sse-patch-elements', ({detail}) => {
