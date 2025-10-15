@@ -1,8 +1,6 @@
 ;(function ($w, $d) {
-  const stores = {}
-  $w.store = (n) => stores[n]
-
   const data_sel = '[data-init], [data-bind], [data-effect]'
+  const S = {}
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
   const listen = ($n, e, cb, o = {}) => $n.addEventListener(e, cb, o)
@@ -137,7 +135,7 @@
         }
 
         const u = (kv) => kv.some((k) => d.has(k))
-        $n._S = new Proxy(stores[$n.id] ?? {}, {
+        $n._S = new Proxy(S[$n.id] ?? {}, {
           get: (o, k) => k == '_D' ? d : k == '_U' ? u : o[k],
           set(o, k, v) {
             if (d.r && !has(o, k)) throw `${k} is not defined`
@@ -149,7 +147,7 @@
           },
         })
 
-        if ($n.id) stores[$n.id] = $n._S
+        if ($n.id) S[$n.id] = $n._S
         fn('init', $n, $n.dataset.init)()
       }
 
