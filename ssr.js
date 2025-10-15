@@ -5,16 +5,13 @@
   const data_sel = '[data-init], [data-bind], [data-effect]'
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
+  const listen = ($n, e, cb, o = {}) => $n.addEventListener(e, cb, o)
   const $map = ($p, s, cb) => [].map.call($p.querySelectorAll(s), cb)
   const $q = ($p, s) => $p.querySelector(s)
-  const listen = ($n, e, cb) => $n.addEventListener(e, cb)
-  const unlisten = ($n, e, cb) => $n.removeEventListener(e, cb)
 
   const at = {
     class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
     delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
-    get: fetch,
-    post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
     debounce: (k, $n, cb, s) => {
       ;($n._T ??= {})[k] && clearTimeout($n._T[k])
       $n._T[k] = setTimeout(cb, s)
@@ -22,21 +19,27 @@
     destroy,
     dispatch,
     j,
-    listen,
+    get: fetch,
+    listen: ($n, $t, e, cb, o = {}) => {
+      ;($n._C ??= {})[e] && $n._C[e].abort()
+      o.signal = ($n._C[e] = new AbortController()).signal
+      listen($t, e, cb, o)
+    },
     map: $map,
+    post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
     q: $q,
-    unlisten,
   }
 
-  function destroy($n) {
+  function destroy($n, r = true) {
     $map($n, data_sel, destroy)
     if ($n.dataset.destroy) fn('destroy', $n, $n.dataset.destroy)()
+    for (const k in $n._C ?? {}) $n._C[k].abort()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
-    for (const k in $n._F ?? {}) $n._F[k].abort()
+    if (r) $n.remove()
   }
 
   async function fetch($n, u, q = {}) {
-    ;($n._F ??= {})[u] && $n._F[u].abort()
+    ;($n._C ??= {})[u] && $n._C[u].abort()
     const url = new URL(u, location.href)
     j(q.search ?? $n._S ?? {}, url.searchParams)
 
@@ -45,7 +48,7 @@
     q.headers = j(qh, q.headers ?? new Headers())
 
     try {
-      const ac = $n._F[u] = new AbortController()
+      const ac = $n._C[u] = new AbortController()
       const r = await $w.fetch(url, {...q, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
       if (ct == 'text/event-stream') {
@@ -85,8 +88,8 @@
   function fn(k, $n, v, r = (x) => x) {
     const b = r(v)
       .replace(/\$(\w+)\b/g, 'store.$1')
-      .replace(/\@debounce\(/g, '__at.debounce(__k, el, ()=>')
-      .replace(/\@(class|delete|get|fetch|post)\(/g, '__at.$1(el,')
+      .replace(/\@(debounce)\(/g, '__at.$1(__k,el,()=>')
+      .replace(/\@(class|delete|get|fetch|listen|post)\(/g, '__at.$1(el,')
       .replace(/\@(\w+)\b/g, '__at.$1')
 
     try {
@@ -211,7 +214,7 @@
 
   listen($d, 'ssr:sse-patch-elements', ({detail}) => {
     if (detail.data.lastIndexOf('<body', 2048) !== -1) {
-      destroy($d.body)
+      destroy($d.body, false)
       let [$p, $a] = [new DOMParser().parseFromString(detail.data, 'text/html')]
       if (($a = $q($p, 'body'))) $d.body.innerHTML = $a.innerHTML
       if (($a = $q($p, 'title'))) $map($d, 'title', ($c) => $c.replaceWith($c))
@@ -225,7 +228,7 @@
       for (const $c of $p.children) {
         const swap = ($c.dataset.swap || `replaceWith:#${$c.id}`).split(':', 2)
         const $o = $q($d, swap[1])
-        destroy($o)
+        destroy($o, false)
         $o[swap[0]]($c)
       }
     }
