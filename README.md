@@ -1,6 +1,29 @@
 # ssr.js
 
-An alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev)
+An alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev).
+
+## Size matter
+
+Bundle size and compilation time matters. Especially on low end hand held devices in rural areas. For example 30k might not sound like much, but why make your user download it, if you can have most of the same features for less?
+
+Each commit messages should contain the latest size, but below is just to give a quick idea of the size of `ssr.js`:
+
+```
+$ sed -E 's/^[ ]+//; s/[ ]*\/\/.*//' ssr.js  | wc -c
+6783
+
+$ gzip -c ssr.js | wc -c && brotli -c ssr.js | wc -c
+3056
+2707
+
+$ curl -L https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles/datastar.js | wc -c
+30643
+
+$ curl https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js | wc -c
+51076
+```
+
+Running `ssr.js` through a minifier does not save a lot, but as of today, you can serve a minified version (not even using gzip or brotli) which takes about 5kB!
 
 ## Features
 
