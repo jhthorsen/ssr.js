@@ -152,9 +152,9 @@
       }
 
       let [$p, s] = [$n]
-      while ($p && !$n._S) {
-        if ($p._S) s = $n._S = $p._S
-        $p = $p.parentNode
+      while (!$n._S) {
+        if (!$p || $p._S) s = $n._S = $p ? $p._S : {}
+        $p = $p?.parentNode
       }
 
       // Listen for @click and friends
@@ -213,9 +213,9 @@
   listen($d, 'ssr:sse-patch-elements', ({detail}) => {
     if (detail.data.lastIndexOf('<body', 2048) !== -1) {
       destroy($d.body, false)
-      let [$p, $a] = [new DOMParser().parseFromString(detail.data, 'text/html')]
-      if (($a = $q($p, 'body'))) $d.body.innerHTML = $a.innerHTML
-      if (($a = $q($p, 'title'))) $map($d, 'title', ($c) => $c.replaceWith($c))
+      let [$p, $c] = [new DOMParser().parseFromString(detail.data, 'text/html')]
+      if (($c = $q($p, 'body'))) $d.body.innerHTML = $c.innerHTML
+      if (($c = $q($p, 'title'))) $map($d, 'title', ($o) => $o.textContent = $c.textContent)
       $map($d, 'script[nonce], style[nonce]', ($c) => $c.remove())
       $map($p, 'script[nonce]', script)
       $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
