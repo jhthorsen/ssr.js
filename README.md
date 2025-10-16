@@ -74,6 +74,16 @@ The `data-effect` expression will be called when any variable inside is changed,
 </div>
 ```
 
+### data-init, data-effect and @event syntax and variables
+
+There are some special syntax and variables in data-init, data-effect and @event:
+
+* `el` - The current DOM node.
+* `store` - A `Proxy` object which contains all the variables, but without the "$" prefix.
+* `evt` - The current `event`, inside `@event` handlers.
+* `$foo` - Any variable prefixed with "$" will access a key inside the `store`.
+* `@foo` - Any of the "@" functions listed below are available.
+
 ### @class
 
 The `@class` function is a shorthand for `el.classList.toggle()`.
