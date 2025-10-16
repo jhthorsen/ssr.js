@@ -160,7 +160,7 @@ Issues a POST request using `window.fetch()` See [@get](#%40get).
 Shorthand for `node.querySelector(selector)`.
 
 ```html
-<div data-init="@q(el, 'a[href]' (c) => c.click())">
+<div data-init="@q(el, 'a[href]')?.click())">
 ```
 
 ### @use
