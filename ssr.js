@@ -196,7 +196,7 @@
         const cb = fn('effect', $n, $n.dataset.effect, (x) => {
           const u = x.replaceAll(/@use\(/g, 'store._U(')
           if (u !== x) return u
-          const ks = Array.from(x.matchAll(/\$(\w+)(?!\s*=)/g), (m) => `'${m[1]}'`).join(',')
+          const ks = Array.from(x.matchAll(/\$(\w+)\b\s*(?!=)/g), (m) => `'${m[1]}'`).join(',')
           return `store._U([${ks}])&&(${x})`
         })
 
