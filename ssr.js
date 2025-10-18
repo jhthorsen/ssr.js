@@ -33,6 +33,7 @@
     if ($n.dataset.destroy) fn('destroy', $n, $n.dataset.destroy)()
     for (const k in $n._C ?? {}) $n._C[k].abort()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
+    ;['_C', '_S', '_T'].map((k) => delete $n[k])
     if (r) $n.remove()
   }
 
@@ -109,11 +110,13 @@
     return o
   }
 
-  function script($n) {
-    const $s = $d.createElement('script')
-    ;['nonce', 'textContent'].map((k) => $s[k] = $n[k])
-    $d.body.appendChild($s)
-    $n.remove()
+  function scriptAndStyle($p) {
+    $map($p, 'style, script', ($c) => {
+      const $s = $d.createElement($c.tagName)
+      $s.dataset.temp = $s.nonce = $c.nonce
+      $s.textContent = $c.textContent
+      $d.head.appendChild($s)
+    })
   }
 
   listen($d, 'ssr:init', (evt) => {
@@ -212,23 +215,22 @@
 
   listen($d, 'ssr:sse-patch-elements', ({detail}) => {
     if (detail.data.lastIndexOf('<body', 2048) !== -1) {
-      destroy($d.body, false)
       let [$p, $c] = [new DOMParser().parseFromString(detail.data, 'text/html')]
-      if (($c = $q($p, 'body'))) $d.body.innerHTML = $c.innerHTML
+      $map($d, '[data-preserve]', ($c) => $q($p, `#${$c.id}`)?.replaceWith($c.cloneNode(true)))
+      $map($d, '[data-temp]', ($c) => $c.remove())
+      destroy($d.body, false)
+      scriptAndStyle($p)
       if (($c = $q($p, 'title'))) $map($d, 'title', ($o) => $o.textContent = $c.textContent)
-      $map($d, 'script[nonce], style[nonce]', ($c) => $c.remove())
-      $map($p, 'script[nonce]', script)
-      $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
+      if (($c = $q($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
       const $p = $d.createRange().createContextualFragment(detail.data)
-      $map($p, 'script[nonce]', script)
-      $map($p, 'style[nonce]', ($c) => $d.head.appendChild($c))
       for (const $c of $p.children) {
         const swap = ($c.dataset.swap || `replaceWith:#${$c.id}`).split(':', 2)
         const $o = $q($d, swap[1])
         destroy($o, false)
         $o[swap[0]]($c)
       }
+      scriptAndStyle($p)
     }
 
     dispatch($d, 'ssr:init')

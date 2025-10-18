@@ -74,6 +74,10 @@ The `data-effect` expression will be called when any variable inside is changed,
 </div>
 ```
 
+### data-preserve
+
+Adding `data-preserve` to an element will keep that element around after a swap. This is useful for a loading indicator or an element that keeps historical notifications.
+
 ### data-init, data-effect and @event syntax and variables
 
 There are some special syntax and variables in data-init, data-effect and @event:
