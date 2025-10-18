@@ -166,7 +166,7 @@
       // Two way binding
       if ($n.dataset.bind) {
         const k = $n.dataset.bind.replace(/^\s*\$/, '')
-        s[k] ??= $n.value
+        s[k] ??= $n.type == 'number' ? parseFloat($n.value) : $n.value
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
           listen($n, 'change', () => {
@@ -186,7 +186,7 @@
             }
           })
         } else {
-          listen($n, 'input', () => (s[k] = $n.value))
+          listen($n, 'input', () => s[k] = typeof s[k] == 'number' ? +$n.value : $n.value)
           listen($n, 'ssr:render', () => $n.value = s[k])
         }
       }
