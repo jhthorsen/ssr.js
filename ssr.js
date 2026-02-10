@@ -287,9 +287,8 @@
 
     const $n = evt.target?.closest('[href]')
     if (!$n || $n.target == '_top') return
-    for (const a of $n.attributes) {
-      if (a.name == 'on:click') return
-    }
+    if ($n.target == 'preventDefault') evt.preventDefault()
+    if (evt.defaultPrevented) return
 
     const url = new URL($n.href || $n.getAttribute('href'), location.href)
     if (url.origin !== location.origin) return // external link
