@@ -1,5 +1,5 @@
 ;(function ($w, $d) {
-  const data_sel = '[data-init], [data-bind], [data-effect]'
+  const data_sel = '[data-init], [data-bind], [data-effect], [data-store]'
   const S = {}
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
@@ -124,7 +124,7 @@
       if ($n._S) return
 
       // Create a store
-      if ($n.dataset.init) {
+      if ($n.dataset.store) {
         const d = new Set()
         d.render = (k) => {
           d.add(k)
@@ -151,13 +151,20 @@
         })
 
         if ($n.id) S[$n.id] = $n._S
-        fn('init', $n, $n.dataset.init)()
+        fn('store', $n, $n.dataset.store)()
       }
 
       let [$p, s] = [$n]
       while (!$n._S) {
         if (!$p || $p._S) s = $n._S = $p ? $p._S : {}
         $p = $p?.parentNode
+      }
+
+      // Run initial code
+      if ($n.dataset.init) {
+        if ($n.id) S[$n.id] = $n._S
+        delete $n._S._D.r
+        fn('init', $n, $n.dataset.init)()
       }
 
       // Listen for @click and friends
@@ -260,5 +267,6 @@
     fetch($d.body, location.href, {})
   })
 
+  if (!$d.body.dataset.store) $d.body.dataset.store = '$root=true'
   dispatch($d, 'ssr:init')
 })(window, document)
