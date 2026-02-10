@@ -164,10 +164,10 @@
         fn('init', $n, $n.dataset.init)()
       }
 
-      // Listen for @click and friends
-      for (const attr of $n.attributes) {
-        const e = attr.name.replace(/^@/, '')
-        if (e != attr.name) listen($n, e, fn('on', $n, attr.value))
+      // Listen for on:click and other events
+      for (const a of $n.attributes) {
+        const e = a.name.replace(/^on:/, '')
+        if (e != a.name) listen($n, e, fn('on', $n, a.value))
       }
 
       // Two way binding
@@ -246,7 +246,7 @@
     const $n = evt.target?.closest('[href]')
     if (!$n || $n.target == '_top') return
     for (const a of $n.attributes) {
-      if (a.name == '@click') return
+      if (a.name == 'on:click') return
     }
 
     const url = new URL($n.href || $n.getAttribute('href'), location.href)
