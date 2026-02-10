@@ -4,8 +4,7 @@
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
   const listen = ($n, e, cb, o = {}) => $n.addEventListener(e, cb, o)
-  const $map = ($p, s, cb) => [].map.call($p.querySelectorAll(s), cb)
-  const $q = ($p, s) => $p.querySelector(s)
+  const $ = ($p, s, cb) => !cb ? $p.querySelector(s) : [].map.call($p.querySelectorAll(s), cb)
 
   const at = {
     class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
@@ -23,13 +22,11 @@
       o.signal = ($n._C[e] = new AbortController()).signal
       listen($t, e, cb, o)
     },
-    map: $map,
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
-    q: $q,
   }
 
   function destroy($n, r = true) {
-    $map($n, data_sel, destroy)
+    $($n, data_sel, destroy)
     if ($n.dataset.destroy) fn('destroy', $n, $n.dataset.destroy)()
     for (const k in $n._C ?? {}) $n._C[k].abort()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
@@ -42,7 +39,7 @@
     const url = new URL(u, location.href)
     j(q.search ?? $n._S ?? {}, url.searchParams)
 
-    const $h = $q($d.head, 'meta[name=ssr-headers]')
+    const $h = $($d.head, 'meta[name=ssr-headers]')
     const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
     q.headers = j(qh, q.headers ?? new Headers())
 
@@ -92,9 +89,9 @@
       .replace(/\@(\w+)\b/g, '__at.$1')
 
     try {
-      const cb = new Function('el', 'store', '__at', '__k', 'evt', b)
+      const cb = new Function('$', 'el', 'store', '__at', '__k', 'evt', b)
       $n.dataset[k] = b
-      return (e) => cb($n, $n._S, at, k, e)
+      return (e) => cb($, $n, $n._S, at, k, e)
     } catch (error) {
       console.error(error, $n, b)
     }
@@ -111,7 +108,7 @@
   }
 
   function scriptAndStyle($p) {
-    $map($p, 'style, script', ($c) => {
+    $($p, 'style, script', ($c) => {
       const $s = $d.createElement($c.tagName)
       $s.dataset.temp = $s.nonce = $c.nonce
       $s.textContent = $c.textContent
@@ -120,7 +117,7 @@
   }
 
   listen($d, 'ssr:init', (evt) => {
-    $map(evt.target, data_sel, ($n) => {
+    $(evt.target, data_sel, ($n) => {
       if ($n._S) return
 
       // Create a store
@@ -130,7 +127,7 @@
           d.add(k)
           d._r ??= $w.requestAnimationFrame(() => {
             dispatch($n, 'ssr:render')
-            $map($n, data_sel, ($c) => dispatch($c, 'ssr:render'))
+            $($n, data_sel, ($c) => dispatch($c, 'ssr:render'))
             d.clear()
             d.r = true
             delete d._r
@@ -223,17 +220,17 @@
   listen($d, 'ssr:sse-patch-elements', ({detail}) => {
     if (detail.data.lastIndexOf('<body', 2048) !== -1) {
       let [$p, $c] = [new DOMParser().parseFromString(detail.data, 'text/html')]
-      $map($d, '[data-preserve]', ($c) => $q($p, `#${$c.id}`)?.replaceWith($c.cloneNode(true)))
-      $map($d, '[data-temp]', ($c) => $c.remove())
+      $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`)?.replaceWith($c.cloneNode(true)))
+      $($d, '[data-temp]', ($c) => $c.remove())
       destroy($d.body, false)
       scriptAndStyle($p)
-      if (($c = $q($p, 'title'))) $map($d, 'title', ($o) => $o.textContent = $c.textContent)
-      if (($c = $q($p, 'body'))) $d.body.innerHTML = $c.innerHTML
+      if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
+      if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
       const $p = $d.createRange().createContextualFragment(detail.data)
       for (const $c of $p.children) {
         const swap = ($c.dataset.swap || `replaceWith:#${$c.id}`).split(':', 2)
-        const $o = $q($d, swap[1])
+        const $o = $($d, swap[1])
         destroy($o, false)
         $o[swap[0]]($c)
       }
