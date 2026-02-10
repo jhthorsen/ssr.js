@@ -3,48 +3,41 @@
   const S = {}
   const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
-  const listen = ($n, e, cb, o = {}) => $n.addEventListener(e, cb, o)
   const $ = ($p, s, cb) => !cb ? $p.querySelector(s) : [].map.call($p.querySelectorAll(s), cb)
 
   const at = {
-    class: ($n, kv) => Object.entries(kv).forEach(([n, b]) => $n.classList.toggle(n, b)),
-    delete: ($n, u, o = {}) => fetch($n, u, {method: 'DELETE', ...o}),
     debounce: (k, $n, cb, s) => {
       ;($n._T ??= {})[k] && clearTimeout($n._T[k])
       $n._T[k] = setTimeout(cb, s)
     },
-    destroy,
     dispatch,
-    j,
+    fetch,
     get: fetch,
-    listen: ($n, $t, e, cb, o = {}) => {
-      ;($n._C ??= {})[e] && $n._C[e].abort()
-      o.signal = ($n._C[e] = new AbortController()).signal
-      listen($t, e, cb, o)
-    },
+    listen,
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
   }
 
-  function destroy($n, r = true) {
+  function destroy($n) {
+    if ($n.dataset.preserve != undefined) return
     $($n, data_sel, destroy)
-    if ($n.dataset.destroy) fn('destroy', $n, $n.dataset.destroy)()
-    for (const k in $n._C ?? {}) $n._C[k].abort()
+    for (const k in $n._C ?? {}) for (const c of $n._C[k]) c()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
     ;['_C', '_S', '_T'].map((k) => delete $n[k])
-    if (r) $n.remove()
   }
 
   async function fetch($n, u, q = {}) {
-    ;($n._C ??= {})[u] && $n._C[u].abort()
+    for (const c of ($n._C ??= {})[u] ?? []) c()
+    const ac = new AbortController()
+    $n._C[u] = [() => ac.abort()]
+
     const url = new URL(u, location.href)
-    j(q.search ?? $n._S ?? {}, url.searchParams)
+    if (q.search) j(q.search, url.searchParams)
 
     const $h = $($d.head, 'meta[name=ssr-headers]')
     const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
     q.headers = j(qh, q.headers ?? new Headers())
 
     try {
-      const ac = $n._C[u] = new AbortController()
       const r = await $w.fetch(url, {...q, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
       if (ct == 'text/event-stream') {
@@ -62,6 +55,7 @@
               e[k] ??= ''
               e[k] += v
             } else {
+              e.url = u
               dispatch($d, 'ssr:sse-' + e.event, {detail: e})
               e = {}
             }
@@ -70,14 +64,19 @@
         }
       } else if (ct.startsWith('text/html')) {
         const data = await r.text()
-        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {data}})
+        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {data, url: u}})
       } else {
-        console.warn(`TODO ${ct}`)
+        console.warn(`TODO ${ct || r.url.toString()}`)
       }
+      return r
     } catch (error) {
       if (error.name != 'AbortError') {
         dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {q, u, error}})
       }
+      if (!q.method || q.method == 'GET') {
+        setTimeout(() => $n.parentNode && fetch($n, u, q), 3000)
+      }
+      return null
     }
   }
 
@@ -85,8 +84,8 @@
     const b = r(v)
       .replace(/\$(\w+)\b/g, 'store.$1')
       .replace(/\@(debounce)\(/g, '__at.$1(__k,el,()=>')
-      .replace(/\@(class|delete|get|fetch|listen|post)\(/g, '__at.$1(el,')
-      .replace(/\@(\w+)\b/g, '__at.$1')
+      .replace(/\@(get|listen|post)\(/g, '__at.$1(el,')
+      .replace(/\@(dispatch|fetch)\b/g, '__at.$1')
 
     try {
       const cb = new Function('$', 'el', 'store', '__at', '__k', 'evt', b)
@@ -107,16 +106,28 @@
     return o
   }
 
-  function scriptAndStyle($p) {
+  function listen($n, $t, e, cb, o = {}) {
+    $t.addEventListener(e, cb, o)
+    const u = () => {
+      $t.removeEventListener(e, cb)
+      $n._C[e].delete(u)
+    }
+    ;(($n._C ??= {})[e] ??= new Set()).add(u)
+    return u
+  }
+
+  function scriptAndStyle($p, url) {
     $($p, 'style, script', ($c) => {
       const $s = $d.createElement($c.tagName)
-      $s.dataset.temp = $s.nonce = $c.nonce
+      $s.nonce = $c.nonce
+      $s.dataset.owner = url || $s.nonce
       $s.textContent = $c.textContent
       $d.head.appendChild($s)
+      $c.remove()
     })
   }
 
-  listen($d, 'ssr:init', (evt) => {
+  listen($w, $d, 'ssr:init', (evt) => {
     $(evt.target, data_sel, ($n) => {
       if ($n._S) return
 
@@ -167,7 +178,7 @@
       // Listen for on:click and other events
       for (const a of $n.attributes) {
         const e = a.name.replace(/^on:/, '')
-        if (e != a.name) listen($n, e, fn('on', $n, a.value))
+        if (e != a.name) listen($n, $n, e, fn('on', $n, a.value))
       }
 
       // Two way binding
@@ -176,7 +187,7 @@
         s[k] ??= $n.type == 'number' ? parseFloat($n.value) : $n.value
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
-          listen($n, 'change', () => {
+          listen($n, $n, 'change', () => {
             const b = !$n.hasAttribute('value')
             if (s[k] instanceof Set) {
               s[k][$n.checked ? 'add' : 'delete']($n.value)
@@ -185,7 +196,7 @@
               s[k] = $n.checked ? (b ? true : $n.value) : (b ? false : '')
             }
           })
-          listen($n, 'ssr:render', () => {
+          listen($n, $n, 'ssr:render', () => {
             if (s[k] instanceof Set) {
               $n.checked = s[k].has($n.value)
             } else {
@@ -193,8 +204,8 @@
             }
           })
         } else {
-          listen($n, 'input', () => s[k] = typeof s[k] == 'number' ? +$n.value : $n.value)
-          listen($n, 'ssr:render', () => $n.value = s[k])
+          listen($n, $n, 'input', () => s[k] = typeof s[k] == 'number' ? +$n.value : $n.value)
+          listen($n, $n, 'ssr:render', () => $n.value = s[k])
         }
       }
 
@@ -204,43 +215,44 @@
           const u = x.replaceAll(/@use\(/g, 'store._U(')
           if (u !== x) return u
           const ks = Array.from(x.matchAll(/\$(\w+)\b\s*(?!=)/g), (m) => `'${m[1]}'`).join(',')
-          return `store._U([${ks}])&&(${x})`
+          return `if(store._U([${ks}])){${x};}`
         })
 
-        listen($n, 'ssr:render', cb)
+        listen($n, $n, 'ssr:render', cb)
       }
     })
   })
 
-  listen($d, 'ssr:fetch-error', (evt) => {
-    const d = evt.detail
-    setTimeout(() => evt.target.parentNode && fetch(evt.target, d.u, d.q), 3000)
-  })
-
-  listen($d, 'ssr:sse-patch-elements', ({detail}) => {
-    if (detail.data.lastIndexOf('<body', 2048) !== -1) {
+  listen($w, $d, 'ssr:sse-patch-elements', ({detail}) => {
+    const url = detail.url?.toString() ?? ''
+    if (detail.data.lastIndexOf('<body', 4096) !== -1) {
       let [$p, $c] = [new DOMParser().parseFromString(detail.data, 'text/html')]
-      $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`)?.replaceWith($c.cloneNode(true)))
-      $($d, '[data-temp]', ($c) => $c.remove())
-      destroy($d.body, false)
-      scriptAndStyle($p)
+      $($d, '[data-owner]', ($c) => $c.remove())
+      destroy($d.body)
+      scriptAndStyle($p, url)
+      $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
       if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
-      const $p = $d.createRange().createContextualFragment(detail.data)
-      for (const $c of $p.children) {
-        const swap = ($c.dataset.swap || `replaceWith:#${$c.id}`).split(':', 2)
-        const $o = $($d, swap[1])
-        destroy($o, false)
-        $o[swap[0]]($c)
+      const $p = $d.createRange().createContextualFragment(/^\s*<tr\b/.test(detail.data) ? `<table data-template="tr">${detail.data}</table>` : detail.data)
+      if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
+      scriptAndStyle($p, url)
+      $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
+      for (const $t of $p.children) {
+        for (const $c of $t.dataset.template ? $t.querySelectorAll($t.dataset.template) : [$t]) {
+          const swap = ($c.dataset.swap || `morph:#${$c.id}`).split(':', 2)
+          const $o = $($d, swap[1])
+          destroy($o)
+          swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
+          setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
+        }
       }
-      scriptAndStyle($p)
     }
 
     dispatch($d, 'ssr:init')
   })
 
-  listen($d.body, 'click', (evt) => {
+  listen($w, $d.body, 'click', (evt) => {
     if (evt.target?.closest('button, input, select, textarea')) return
 
     const $n = evt.target?.closest('[href]')
@@ -260,7 +272,7 @@
     fetch($d.body, url.pathname + url.search, {})
   })
 
-  listen($w, 'popstate', () => {
+  listen($w, $w, 'popstate', () => {
     fetch($d.body, location.href, {})
   })
 
