@@ -268,13 +268,25 @@
         '[data-preserve=always]',
         ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))),
       )
+      $($p, '[data-swap]', ($c) => {
+        if ($c.dataset.swap == 'none') return;
+        const swap = $c.dataset.swap.split(':', 2)
+        const $o = $($d, swap[1])
+        if (swap[0] == 'morph' || swap[0] == 'replaceWith') destroy($o)
+        swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
+      })
       for (const $t of $p.children) {
+        if ($t.dataset.swap == 'none') continue;
         for (const $c of $t.dataset.template ? $t.querySelectorAll($t.dataset.template) : [$t]) {
-          const swap = ($c.dataset.swap || `morph:#${$c.id}`).split(':', 2)
-          const $o = $($d, swap[1])
-          destroy($o)
-          swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
-          setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
+          const $o = $c.id && $($d, `#${$c.id}`)
+          if ($o) {
+            destroy($o)
+            Idiomorph ? Idiomorph.morph($o, $c) : $o.replaceWith($c)
+            setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
+          } else {
+            console.warn({message: 'Can\'t swap unknown element', $c})
+          }
+
         }
       }
     }
