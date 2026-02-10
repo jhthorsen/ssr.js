@@ -15,6 +15,10 @@
     get: fetch,
     listen,
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
+    set: ($n, k, i, v) => {
+      $n._S[k][i] = v
+      $n._S._D.render(k)
+    },
   }
 
   function destroy($n) {
@@ -84,7 +88,7 @@
     const b = r(v)
       .replace(/\$(\w+)\b/g, 'store.$1')
       .replace(/\@(debounce)\(/g, '__at.$1(__k,el,()=>')
-      .replace(/\@(get|listen|post)\(/g, '__at.$1(el,')
+      .replace(/\@(get|listen|post|set)\(/g, '__at.$1(el,')
       .replace(/\@(dispatch|fetch)\b/g, '__at.$1')
 
     try {
