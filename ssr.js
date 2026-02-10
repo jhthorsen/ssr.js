@@ -5,6 +5,15 @@
   const has = Object.hasOwn
   const $ = ($p, s, cb) => !cb ? $p.querySelector(s) : [].map.call($p.querySelectorAll(s), cb)
 
+  const O = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const $n = entry.target
+      if (!entry.isIntersecting) continue
+      if ($n.getAttribute('on:reveal')) dispatch($n, 'reveal')
+      O.unobserve($n)
+    }
+  })
+
   const at = {
     debounce: (k, $n, cb, s) => {
       ;($n._T ??= {})[k] && clearTimeout($n._T[k])
@@ -23,6 +32,7 @@
 
   function destroy($n) {
     if ($n.dataset.preserve != undefined) return
+    O.unobserve($n)
     $($n, data_sel, destroy)
     for (const k in $n._C ?? {}) for (const c of $n._C[k]) c()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
@@ -179,9 +189,10 @@
         fn('init', $n, $n.dataset.init)()
       }
 
-      // Listen for on:click and other events
+      // Listen for on:click, on:reveal and other events
       for (const a of $n.attributes) {
         const e = a.name.replace(/^on:/, '')
+        if (e == 'reveal') O.observe($n)
         if (e != a.name) listen($n, $n, e, fn('on', $n, a.value))
       }
 
