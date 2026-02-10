@@ -197,30 +197,33 @@
       }
 
       // Two way binding
+      // TODO: Not very well tested for all cases of inputs
       if ($n.dataset.bind) {
-        const k = $n.dataset.bind.replace(/^\s*\$/, '')
-        s[k] ??= $n.type == 'number' ? parseFloat($n.value) : $n.value
+        const [_, k, i] = $n.dataset.bind.match(/(\w+)\[(\d+)\]/) ||
+          $n.dataset.bind.match(/(\w+)/) || []
+        const n = $n.type == 'number' || $n.dataset.type == 'number'
+        const w = i == undefined ? (v) => (s[k] = n ? +v : v) : (v) => (s[k][i] = n ? +v : v)
+        const r = i == undefined ? () => s[k] : () => s[k][i]
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
+          const byVal = $n.hasAttribute('value')
           listen($n, $n, 'change', () => {
-            const b = !$n.hasAttribute('value')
-            if (s[k] instanceof Set) {
-              s[k][$n.checked ? 'add' : 'delete']($n.value)
-              s._D.render(k)
-            } else {
-              s[k] = $n.checked ? (b ? true : $n.value) : (b ? false : '')
-            }
+            w(byVal ? $n.value : $n.checked)
+            s._D.render(k)
           })
           listen($n, $n, 'ssr:render', () => {
-            if (s[k] instanceof Set) {
-              $n.checked = s[k].has($n.value)
-            } else {
-              $n.checked = s[k] === true || s[k] == $n.value // Want to match numbers and strings
-            }
+            $n.checked = byVal ? $n.value == r() : r()
           })
+          w(byVal ? $n.value : $n.checked)
         } else {
-          listen($n, $n, 'input', () => s[k] = typeof s[k] == 'number' ? +$n.value : $n.value)
-          listen($n, $n, 'ssr:render', () => $n.value = s[k])
+          listen($n, $n, 'input', () => {
+            w($n.value)
+            s._D.render(k)
+          })
+          listen($n, $n, 'ssr:render', () => {
+            $n.value = r()
+          })
+          w($n.value)
         }
       }
 
@@ -245,14 +248,26 @@
       $($d, '[data-owner]', ($c) => $c.remove())
       destroy($d.body)
       scriptAndStyle($p, url)
-      $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
+      $(
+        $d,
+        '[data-preserve]',
+        ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))),
+      )
       if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
       if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
-      const $p = $d.createRange().createContextualFragment(/^\s*<tr\b/.test(detail.data) ? `<table data-template="tr">${detail.data}</table>` : detail.data)
+      const $p = $d.createRange().createContextualFragment(
+        /^\s*<tr\b/.test(detail.data)
+          ? `<table data-template="tr">${detail.data}</table>`
+          : detail.data,
+      )
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
       scriptAndStyle($p, url)
-      $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
+      $(
+        $d,
+        '[data-preserve=always]',
+        ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))),
+      )
       for (const $t of $p.children) {
         for (const $c of $t.dataset.template ? $t.querySelectorAll($t.dataset.template) : [$t]) {
           const swap = ($c.dataset.swap || `morph:#${$c.id}`).split(':', 2)
