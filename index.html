@@ -19,12 +19,12 @@
     </div>
   </header>
   <main role="document" class="container">
-    <p data-init="console.log(@map(@q(document, 'main'), 'p', i => i));@render()"
+    <p data-init="console.log($($(document, 'main'), 'p', i => i))"
        data-effect="console.log('effect')">Look in the console</p>
-    <p><button data-init @click="alert('@click is cool!')">Click me!</button></p>
+    <p><button data-init on:click="alert('on:click ftw!')">Click me!</button></p>
 
     <p data-init="$x=42">
-      <a href="#add" data-init @click="$x++">Add</a>
+      <a href="#add" data-init on:click="$x++" target="preventDefault">Add</a>
       <span data-effect="el.textContent = $x"></span>,
       debounced: <span data-effect="@debounce(el.textContent = $x, 500)"></span>
     </p>
@@ -32,7 +32,7 @@
     <form data-init="$v=''">
       <fieldset role="group">
         <input type="text" data-bind="v" placeholder="Type something">
-        <button type="button" data-init @click="$v=''">Clear</button>
+        <button type="button" data-init on:click="$v=''">Clear</button>
       </fieldset>
       <span data-effect="el.textContent = $v.toUpperCase()"></span>
     </form>
