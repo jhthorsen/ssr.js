@@ -301,6 +301,35 @@
     fetch($d.body, url.pathname + url.search, {})
   })
 
+  listen($w, $d, 'submit', (evt) => {
+    const $n = evt.target?.closest('form')
+    if (!$n || $n.target == '_top') return
+    if (evt.target?.closest('input, select, textarea')) evt.preventDefault()
+    if ($n.target == 'preventDefault') evt.preventDefault()
+    if (evt.defaultPrevented) return
+    if ($n.action == 'get') history.pushState({}, null, $n.action)
+
+    const r = {method: $n.method}
+    const b = new FormData($n)
+    if (r.method.toLowerCase() == 'post') {
+      const c = 'application/x-www-form-urlencoded'
+      const t = $n.enctype || c
+      r.headers = new Headers()
+      r.headers.append('content-type', t)
+      r.body = t == c ? new URLSearchParams(b) : b
+    } else {
+      r.search = Object.fromEntries(b.entries())
+    }
+
+    const $s = evt.submitter
+    if ($s) $s.ariaBusy = 'true'
+    evt.preventDefault()
+    fetch($d.body, $n.action, r).finally(() => {
+      $n.ariaBusy = 'false'
+      if ($s) $s.ariaBusy = 'false'
+    })
+  })
+
   listen($w, $w, 'popstate', () => {
     fetch($d.body, location.href, {})
   })
