@@ -122,10 +122,7 @@
 
   function listen($n, $t, e, cb, o = {}) {
     $t.addEventListener(e, cb, o)
-    const u = () => {
-      $t.removeEventListener(e, cb)
-      $n._C[e].delete(u)
-    }
+    const u = () => { $t.removeEventListener(e, cb); $n._C[e].delete(u) }
     ;(($n._C ??= {})[e] ??= new Set()).add(u)
     return u
   }
@@ -199,30 +196,19 @@
       // Two way binding
       // TODO: Not very well tested for all cases of inputs
       if ($n.dataset.bind) {
-        const [_, k, i] = $n.dataset.bind.match(/(\w+)\[(\d+)\]/) ||
-          $n.dataset.bind.match(/(\w+)/) || []
+        const [_, k, i] = $n.dataset.bind.match(/(\w+)\[(\d+)\]/) || $n.dataset.bind.match(/(\w+)/) || []
         const n = $n.type == 'number' || $n.dataset.type == 'number'
         const w = i == undefined ? (v) => (s[k] = n ? +v : v) : (v) => (s[k][i] = n ? +v : v)
         const r = i == undefined ? () => s[k] : () => s[k][i]
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
           const byVal = $n.hasAttribute('value')
-          listen($n, $n, 'change', () => {
-            w(byVal ? $n.value : $n.checked)
-            s._D.render(k)
-          })
-          listen($n, $n, 'ssr:render', () => {
-            $n.checked = byVal ? $n.value == r() : r()
-          })
+          listen($n, $n, 'change', () => { w(byVal ? $n.value : $n.checked); s._D.render(k) })
+          listen($n, $n, 'ssr:render', () => { $n.checked = byVal ? $n.value == r() : r() })
           w(byVal ? $n.value : $n.checked)
         } else {
-          listen($n, $n, 'input', () => {
-            w($n.value)
-            s._D.render(k)
-          })
-          listen($n, $n, 'ssr:render', () => {
-            $n.value = r()
-          })
+          listen($n, $n, 'input', () => { w($n.value); s._D.render(k) })
+          listen($n, $n, 'ssr:render', () => { $n.value = r() })
           w($n.value)
         }
       }
@@ -248,26 +234,14 @@
       $($d, '[data-owner]', ($c) => $c.remove())
       destroy($d.body)
       scriptAndStyle($p, url)
-      $(
-        $d,
-        '[data-preserve]',
-        ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))),
-      )
+      $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
       if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
-      const $p = $d.createRange().createContextualFragment(
-        /^\s*<tr\b/.test(detail.data)
-          ? `<table data-template="tr">${detail.data}</table>`
-          : detail.data,
-      )
+      const $p = $d.createRange().createContextualFragment(/^\s*<tr\b/.test(detail.data) ? `<table data-template="tr">${detail.data}</table>` : detail.data)
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
       scriptAndStyle($p, url)
-      $(
-        $d,
-        '[data-preserve=always]',
-        ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))),
-      )
+      $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       $($p, '[data-swap]', ($c) => {
         if ($c.dataset.swap == 'none') return;
         const swap = $c.dataset.swap.split(':', 2)
@@ -286,7 +260,6 @@
           } else {
             console.warn({message: 'Can\'t swap unknown element', $c})
           }
-
         }
       }
     }
