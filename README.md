@@ -18,9 +18,7 @@ This project is especially suitable for backend developers, that does not want t
   <li><a href="#events">Events</a></li>
   <li><a href="#server-side-responses">Server side responses</a></li>
   <li><a href="#special-tags">Special tags</a></li>
-  <li><a href="#comparison">Comparison</a></li>
-  <li><a href="#not-planned">Not planned</a></li>
-  <li><a href="#todo">TODO</a></li>
+  <li><a href="#comparison-with-datastar">Comparison with datastar</a></li>
   <li><a href="#copyright">Copyright</a></li>
 </ul>
 
@@ -301,7 +299,30 @@ A meta tag can be defined in `head` to send default headers. Note that no specia
 </head>
 ```
 
-## Comparison
+## Comparison with datastar
+
+The following features in datastar are not planned, either because of complexity or narrow usecases:
+[data-animate](https://data-star.dev/reference/attributes#data-animate),
+[data-custom-validity](https://data-star.dev/reference/attributes#data-custom-validity),
+[data-ignore](https://data-star.dev/reference/attributes#data-ignore),
+[data-ignore-morph](https://data-star.dev/reference/attributes#data-ignore-morph),
+[data-json-signals](https://data-star.dev/reference/attributes#data-json-signals),
+[data-on-intersect](https://data-star.dev/reference/attributes#data-on-intersect),
+[data-on-interval](https://data-star.dev/reference/attributes#data-on-interval),
+[data-on-resize](https://data-star.dev/reference/attributes#data-on-resize),
+[data-on-signal-patch-filter](https://data-star.dev/reference/attributes#data-on-signal-patch-filter),
+[data-query-string](https://data-star.dev/reference/attributes#data-query-string) and
+[data-ref](https://data-star.dev/reference/attributes#data-ref).
+
+The following datastar features will probably be implemented in the future:
+[data-indicator](https://data-star.dev/reference/attributes#data-indicator),
+[data-on-raf](https://data-star.dev/reference/attributes#data-on-raf),
+[data-on-signal-patch](https://data-star.dev/reference/attributes#data-on-signal-patch),
+[data-persist](https://data-star.dev/reference/attributes#data-persist),
+[data-preserve-attr](https://data-star.dev/reference/attributes#data-preserve-attr),
+[data-replace-url](https://data-star.dev/reference/attributes#data-replace-url),
+[data-scroll-into-view](https://data-star.dev/reference/attributes#data-scroll-into-view) and
+[data-view-transition](https://data-star.dev/reference/attributes#data-view-transition).
 
 ### Datastar: data-attr
 
@@ -388,35 +409,6 @@ Note that `data-store="..."` creates a new isolated store. Child elements withou
   <b data-effect="el.textContent=$a"/>
 </div>
 ```
-
-## Not planned
-
-The following features in datastar are not planned, either because of complexity or narrow usecases:
-
-* [data-animate](https://data-star.dev/reference/attributes#data-animate)
-* [data-custom-validity](https://data-star.dev/reference/attributes#data-custom-validity)
-* [data-ignore](https://data-star.dev/reference/attributes#data-ignore)
-* [data-ignore-morph](https://data-star.dev/reference/attributes#data-ignore-morph)
-* [data-json-signals](https://data-star.dev/reference/attributes#data-json-signals)
-* [data-on-intersect](https://data-star.dev/reference/attributes#data-on-intersect)
-* [data-on-interval](https://data-star.dev/reference/attributes#data-on-interval)
-* [data-on-resize](https://data-star.dev/reference/attributes#data-on-resize)
-* [data-on-signal-patch-filter](https://data-star.dev/reference/attributes#data-on-signal-patch-filter)
-* [data-query-string](https://data-star.dev/reference/attributes#data-query-string)
-* [data-ref](https://data-star.dev/reference/attributes#data-ref)
-
-## TODO
-
-The following datastar features will probably be implemented in the future:
-
-* [data-indicator](https://data-star.dev/reference/attributes#data-indicator)
-* [data-on-raf](https://data-star.dev/reference/attributes#data-on-raf)
-* [data-on-signal-patch](https://data-star.dev/reference/attributes#data-on-signal-patch)
-* [data-persist](https://data-star.dev/reference/attributes#data-persist)
-* [data-preserve-attr](https://data-star.dev/reference/attributes#data-preserve-attr)
-* [data-replace-url](https://data-star.dev/reference/attributes#data-replace-url)
-* [data-scroll-into-view](https://data-star.dev/reference/attributes#data-scroll-into-view)
-* [data-view-transition](https://data-star.dev/reference/attributes#data-view-transition)
 
 ## Copyright
 
