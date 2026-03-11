@@ -1,6 +1,26 @@
-# ssr.js
+<div align="center">
+    <pre>___ ___ _ __ _ ___
+/ __/ __| '__| / __|
+\__ \__ \ |_ | \__ \
+|___/___/_(_)| |___/
+            _/ |
+           |__/</pre>
+</div>
 
 An alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev).
+
+<ul>
+  <li><a href="#size-matter">Size matter</a></li>
+  <li><a href="#attributes">Attributes</a></li>
+  <li><a href="#at-functions---foo">At-functions - @foo()</a></li>
+  <li><a href="#events">Events</a></li>
+  <li><a href="#server-side-responses">Server side responses</a></li>
+  <li><a href="#special-tags">Special tags</a></li>
+  <li><a href="#comparison">Comparison</a></li>
+  <li><a href="#not-planned">Not planned</a></li>
+  <li><a href="#todo">TODO</a></li>
+  <li><a href="#copyright">Copyright</a></li>
+</ul>
 
 ## Size matter
 
