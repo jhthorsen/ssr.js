@@ -1,10 +1,30 @@
 ;(function ($w, $d) {
   const data_sel = '[data-init], [data-bind], [data-effect], [data-store]'
   const S = {}
-  const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
   const has = Object.hasOwn
+
+  /**
+   * Dispatches a custom event on a given node.
+   * @param {Node} $n - The target DOM node.
+   * @param {string} e - The event name.
+   * @param {Object} [o={}] - Additional `CustomEvent` options.
+   * @returns {boolean} - True if event dispatched.
+   */
+  const dispatch = ($n, e, o = {}) => $n.dispatchEvent(new CustomEvent(e, {bubbles: false, ...o}))
+
+  /**
+   * DOM node selector utility. Will use querySelectorAll() if a callback is provided, otherwise querySelector().
+   * @param {Element} $p - Parent element.
+   * @param {string} s - Selector string.
+   * @param {Function} [cb] - Callback for each element (Optional)
+   * @returns {Element|Array} - Array of elements if callback is provided, otherwise a single element.
+   */
   const $ = ($p, s, cb) => !cb ? $p.querySelector(s) : [].map.call($p.querySelectorAll(s), cb)
 
+  /**
+   * IntersectionObserver for reveal events.
+   * @type {IntersectionObserver}
+   */
   const O = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       const $n = entry.target
@@ -15,6 +35,13 @@
   })
 
   const at = {
+    /**
+     * Debounce utility to postpone function execution until after a specified delay.
+     * @param {string} k - Unique key to identify the debounce instance.
+     * @param {Node} $n - The target DOM node.
+     * @param {Function} cb - Callback to be called after the debounce delay.
+     * @param {number} s - Delay in ms.
+     */
     debounce: (k, $n, cb, s) => {
       ;($n._T ??= {})[k] && clearTimeout($n._T[k])
       $n._T[k] = setTimeout(cb, s)
@@ -23,13 +50,31 @@
     fetch,
     get: fetch,
     listen,
+    /**
+     * Performs a POST request to a specified URL with given options. See also `fetch()`
+     * @param {Node} $n - The target DOM node.
+     * @param {string} u - A relative URL.
+     * @param {Object} [o={}] - Fetch options, excluding method which is set to 'POST'.
+     * @returns {Promise<Response>}
+     */
     post: ($n, u, o = {}) => fetch($n, u, {method: 'POST', ...o}),
+    /**
+     * Sets a value in the store.
+     * @param {Node} $n - Node.
+     * @param {string} k - Key.
+     * @param {number|string} i - Index.
+     * @param {*} v - Value.
+     */
     set: ($n, k, i, v) => {
       $n._S[k][i] = v
       $n._S._D.render(k)
     },
   }
 
+  /**
+   * Cleans up and destroys internal state on a node and its children.
+   * @param {Node} $n - DOM node to destroy.
+   */
   function destroy($n) {
     if ($n.dataset.preserve != undefined) return
     O.unobserve($n)
@@ -39,20 +84,28 @@
     ;['_C', '_S', '_T'].map((k) => delete $n[k])
   }
 
-  async function fetch($n, u, q = {}) {
+  /**
+   * Fetches a resource and handles SSE, HTML, or errors.
+   * A special element `<meta name="ssr-headers" content='"X-foo": "bar"'>` can be used to include headers in the request, defined as a JSON object in the content attribute.
+   * @param {Node} $n - The target DOM node.
+   * @param {string} u - A relative URL.
+   * @param {Object} [o={}] - Fetch options, excluding signal which is managed internally.
+   * @returns {Promise<Response|null>}
+   */
+  async function fetch($n, u, o = {}) {
     for (const c of ($n._C ??= {})[u] ?? []) c()
     const ac = new AbortController()
     $n._C[u] = [() => ac.abort()]
 
     const url = new URL(u, location.href)
-    if (q.search) j(q.search, url.searchParams)
+    if (o.search) j(o.search, url.searchParams)
 
     const $h = $($d.head, 'meta[name=ssr-headers]')
-    const qh = $h ? fn('headers', $h, `return {${$h.content}}`)() : {}
-    q.headers = j(qh, q.headers ?? new Headers())
+    const qh = $h ? fn($h, `return {${$h.content}}`)() : {}
+    o.headers = j(qh, o.headers ?? new Headers())
 
     try {
-      const r = await $w.fetch(url, {...q, signal: ac.signal})
+      const r = await $w.fetch(url, {...o, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
       if (ct == 'text/event-stream') {
         const [d, rdr] = [new TextDecoder('utf-8'), r.body.getReader()]
@@ -85,31 +138,44 @@
       return r
     } catch (error) {
       if (error.name != 'AbortError') {
-        dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {q, u, error}})
+        dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {q: o, u, error}})
       }
-      if (!q.method || q.method == 'GET') {
-        setTimeout(() => $n.parentNode && fetch($n, u, q), 3000)
+      if (!o.method || o.method == 'GET') {
+        setTimeout(() => $n.parentNode && fetch($n, u, o), 3000)
       }
       return null
     }
   }
 
-  function fn(k, $n, v, r = (x) => x) {
-    const b = r(v)
+  /**
+   * Creates a function from a string, with store and event context.
+   * The store has access to `el` (the target DOM node), `evt` (the event object), `store` (the current store), and `$()`.
+   * @param {Node} $n - The target DOM node.
+   * @param {string} b - Function body string.
+   * @param {Function} [t=(b)=>b] - Transform function.
+   * @returns {Function|undefined} - Generated function.
+   */
+  function fn($n, b, t = (b) => b) {
+    const bt = t(b)
       .replace(/\$(\w+)\b/g, 'store.$1')
-      .replace(/\@(debounce)\(/g, '__at.$1(__k,el,()=>')
+      .replace(/\@(debounce)\(/g, '__at.$1(el.id||"default",el,()=>')
       .replace(/\@(get|listen|post|set)\(/g, '__at.$1(el,')
       .replace(/\@(dispatch|fetch)\b/g, '__at.$1')
 
     try {
-      const cb = new Function('$', 'el', 'store', '__at', '__k', 'evt', b)
-      $n.dataset[k] = b
-      return (e) => cb($, $n, $n._S, at, k, e)
+      const cb = new Function('$', 'el', 'store', '__at', 'evt', bt)
+      return (e) => cb($, $n, $n._S, at, e)
     } catch (error) {
       console.error(error, $n, b)
     }
   }
 
+  /**
+   * Appends key-value pairs to a FormData or URLSearchParams.
+   * @param {Object} i - Input object.
+   * @param {FormData|URLSearchParams} [o=new FormData()] - Output object.
+   * @returns {FormData|URLSearchParams}
+   */
   function j(i, o = new FormData()) {
     for (const k in i ?? {}) {
       if (!k.startsWith('_')) {
@@ -120,6 +186,15 @@
     return o
   }
 
+  /**
+   * Adds an event listener and tracks it for cleanup.
+   * @param {Node} $n - The DOM node to store the cleanup function reference on. Typically the same as $t or the parent of $t.
+   * @param {EventTarget} $t - The target DOM node.
+   * @param {string} e - Event name.
+   * @param {Function} cb - Callback to be called when the event is triggered.
+   * @param {Object} [o={}] - Additional `addEventListener` options.
+   * @returns {Function} - Cleanup function.
+   */
   function listen($n, $t, e, cb, o = {}) {
     $t.addEventListener(e, cb, o)
     const u = () => { $t.removeEventListener(e, cb); $n._C[e].delete(u) }
@@ -127,6 +202,11 @@
     return u
   }
 
+  /**
+   * Moves script and style elements from a fragment to the document head.
+   * @param {Element} $p - Parent element that contains the script and style elements.
+   * @param {string} url - URL that can be used to identify the owner of the script or style element for cleanup purposes.
+   */
   function scriptAndStyle($p, url) {
     $($p, 'style, script', ($c) => {
       const $s = $d.createElement($c.tagName)
@@ -138,13 +218,25 @@
     })
   }
 
+  /**
+   * Listens for the 'ssr:init' event on the document element and initializes stores, effects, and event listeners based on data attributes.
+   * When the 'ssr:init' event is triggered, it searches for elements with `data-init`, `data-bind`, `data-effect`, or `data-store` attributes and sets up the necessary functionality for each element, including creating stores, running initial code, setting up event listeners, and handling two-way bindings.
+   */
   listen($w, $d, 'ssr:init', (evt) => {
     $(evt.target, data_sel, ($n) => {
       if ($n._S) return
 
       // Create a store
       if ($n.dataset.store) {
+        /**
+         * Store object with render and update utilities.
+         * @type {Set}
+         */
         const d = new Set()
+        /**
+         * Dispatches a `ssr:render` event for the given key, batching multiple updates together using `requestAnimationFrame()`.
+         * @param {string} k - Key.
+         */
         d.render = (k) => {
           d.add(k)
           d._r ??= $w.requestAnimationFrame(() => {
@@ -156,6 +248,12 @@
           })
         }
 
+        /**
+         * Creates a proxy for the store that allows for reactive updates and tracking of dependencies.
+         * Note that the reactiveness is not deep, so nested objects or arrays will not trigger updates when modified. To work around this, you can reassign the entire object or array to trigger an update.
+         * @param {Array} kv - Keys.
+         * @returns {boolean}
+         */
         const u = (kv) => kv.some((k) => d.has(k))
         $n._S = new Proxy(S[$n.id] ?? {}, {
           get: (o, k) => k == '_D' ? d : k == '_U' ? u : o[k],
@@ -170,9 +268,17 @@
         })
 
         if ($n.id) S[$n.id] = $n._S
-        fn('store', $n, $n.dataset.store)()
+        // Run initial store code, allowing for pre-population of the store with
+        // data before any effects or event listeners run. This is useful for
+        // setting up initial state or fetching data when the store is created.
+        fn($n, $n.dataset.store)()
       }
 
+      // Looks for a store on the parent object, making it possible to have a
+      // store on a parent element and use it in child elements without having
+      // to pass it down manually. This is done by traversing up the DOM tree
+      // until a store is found or the root is reached, and assigning the store
+      // to the current node for easy access.
       let [$p, s] = [$n]
       while (!$n._S) {
         if (!$p || $p._S) s = $n._S = $p ? $p._S : {}
@@ -183,18 +289,17 @@
       if ($n.dataset.init) {
         if ($n.id) S[$n.id] = $n._S
         delete $n._S._D.r
-        fn('init', $n, $n.dataset.init)()
+        fn($n, $n.dataset.init)()
       }
 
       // Listen for on:click, on:reveal and other events
       for (const a of $n.attributes) {
         const e = a.name.replace(/^on:/, '')
         if (e == 'reveal') O.observe($n)
-        if (e != a.name) listen($n, $n, e, fn('on', $n, a.value))
+        if (e != a.name) listen($n, $n, e, fn($n, a.value))
       }
 
       // Two way binding
-      // TODO: Not very well tested for all cases of inputs
       if ($n.dataset.bind) {
         const [_, k, i] = $n.dataset.bind.match(/(\w+)\[(\d+)\]/) || $n.dataset.bind.match(/(\w+)/) || []
         const n = $n.type == 'number' || $n.dataset.type == 'number'
@@ -215,7 +320,11 @@
 
       // Run effects
       if ($n.dataset.effect) {
-        const cb = fn('effect', $n, $n.dataset.effect, (x) => {
+        /**
+         * Effect callback for rendering.
+         * @type {Function}
+         */
+        const cb = fn($n, $n.dataset.effect, (x) => {
           const u = x.replaceAll(/@use\(/g, 'store._U(')
           if (u !== x) return u
           const ks = Array.from(x.matchAll(/\$(\w+)\b\s*(?!=)/g), (m) => `'${m[1]}'`).join(',')
@@ -227,6 +336,10 @@
     })
   })
 
+  /**
+   * Listens for the 'ssr:sse-patch-elements' event on the document element and updates the DOM based on the provided HTML data.
+   * When the 'ssr:see-patch-elements' event is triggered, it checks if the provided HTML data contains a `<body>` tag. If it does, it replaces the entire body content with the new content while preserving elements marked with `data-preserve`. If it doesn't contain a `<body>` tag, it treats the data as a fragment and updates the DOM accordingly, using `data-owner` attributes to manage script and style elements and `data-swap` attributes to determine how to swap elements in the DOM.
+   */
   listen($w, $d, 'ssr:sse-patch-elements', ({detail}) => {
     const url = detail.url?.toString() ?? ''
     if (detail.data.lastIndexOf('<body', 4096) !== -1) {
@@ -243,14 +356,14 @@
       scriptAndStyle($p, url)
       $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       $($p, '[data-swap]', ($c) => {
-        if ($c.dataset.swap == 'none') return;
+        if ($c.dataset.swap == 'none') return
         const swap = $c.dataset.swap.split(':', 2)
         const $o = $($d, swap[1])
         if (swap[0] == 'morph' || swap[0] == 'replaceWith') destroy($o)
         swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
       })
       for (const $t of $p.children) {
-        if ($t.dataset.swap == 'none') continue;
+        if ($t.dataset.swap == 'none') continue
         for (const $c of $t.dataset.template ? $t.querySelectorAll($t.dataset.template) : [$t]) {
           const $o = $c.id && $($d, `#${$c.id}`)
           if ($o) {
@@ -258,7 +371,7 @@
             Idiomorph ? Idiomorph.morph($o, $c) : $o.replaceWith($c)
             setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
           } else {
-            console.warn({message: 'Can\'t swap unknown element', $c})
+            console.warn({message: "Can't swap unknown element", $c})
           }
         }
       }
@@ -267,6 +380,9 @@
     dispatch($d, 'ssr:init')
   })
 
+  /**
+   * Listens for click events on the document body and handles navigation for links and form submissions.
+   */
   listen($w, $d.body, 'click', (evt) => {
     if (evt.target?.closest('button, input, select, textarea')) return
 
@@ -286,6 +402,9 @@
     fetch($d.body, url.pathname + url.search, {})
   })
 
+  /**
+   * Listens for submit events on the document body and handles form submissions, including preventing default behavior, constructing fetch options based on the form attributes, and managing the busy state of the submitter element.
+   */
   listen($w, $d, 'submit', (evt) => {
     const $n = evt.target?.closest('form')
     if (!$n || $n.target == '_top') return
@@ -315,10 +434,14 @@
     })
   })
 
+  /*
+   * Listens for popstate events on the window and fetches the current location to update the page content accordingly.
+   */
   listen($w, $w, 'popstate', () => {
     fetch($d.body, location.href, {})
   })
 
+  // Defines a root store on the body element and dispatches the 'ssr:init' event to initialize the application.
   if (!$d.body.dataset.store) $d.body.dataset.store = '$root=true'
   dispatch($d, 'ssr:init')
 })(window, document)

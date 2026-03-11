@@ -8,41 +8,54 @@ Bundle size and compilation time matters. Especially on low end hand held device
 
 Each commit messages should contain the latest size, but below is just to give a quick idea of the size of `ssr.js`:
 
-```
-$ sed -E 's/^[ ]+//; s/[ ]*\/\/.*//' ssr.js  | wc -c
-6783
+```sh
+# ssr.js
+$ sed -E s:.*// .*$::; s:^[ ]*/?\*.*::g; s:^[ ]*:: ssr.js | wc
+     281    1280    8836
+$ gzip -ck9 ssr.js | wc -c
+    5939
+$ brotli -ckq 6 ssr.js | wc -c
+    5599
+$ uglifyjs -m properties,toplevel ssr.js | wc -c
+    3098
+$ uglifyjs -m properties,toplevel ssr.js | wc -c
+    2921
 
-$ gzip -c ssr.js | wc -c && brotli -c ssr.js | wc -c
-3056
-2707
-
+# datastar and htmx
 $ curl -L https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles/datastar.js | wc -c
-30643
-
+   30643
 $ curl https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js | wc -c
-51076
+   51076
 ```
 
-Running `ssr.js` through a minifier does not save a lot, but as of today, you can serve a minified version (not even using gzip or brotli) which takes about 5kB!
+## Attributes
 
-## Features
+### data-store
+
+`data-store` creates a new isolated reactive store for an element and its children. The value is JavaScript code that initializes the store using the `$variable=...` syntax. Elements without `data-store` inherit the nearest ancestor's store and the BODY element has a root store.
+
+Ractive variables *must* be defined in either `data-store` or `data-init`.
+
+```html
+<div data-store="$count=0; $name='world'"></div>
+```
 
 ### data-init
 
-`data-init` can be used to run any javascript expression when the element is present in the DOM the first time. All the `@x()` functions below are available, and you can also define reactive variables using the `$myVariable=...` syntax.
+`data-init` can be used to run any javascript expression when the element is inserted into the DOM the first time. All the `@x()` functions below are available, and you can also define reactive variables using the `$myVariable=...` syntax.
 
 ```html
 <div data-init="anyJavaScriptExpression()"/>
 <div data-init="$a=42;"/>
 ```
 
-### data-init and @event
+### on:event listeners
 
-Events such as `@click` can be listened to and the expression inside quotes will be run on the event. All the `@x()` functions below are available, and you can also change any reactive variables.
+Events can be listened to using `on:eventname` attributes. The expression inside quotes will be run on the event. All the `@x()` functions below are available, and you can also change any reactive variables.
 
 ```html
-<!-- The data-init attribute is required for ssr.js to discover this element! -->
-<button data-init @click="anyJavaScriptExpression(evt)">click me</button>
+<!-- The data-init or data-store attribute is required for ssr.js to discover the element! -->
+<button data-init on:click="anyJavaScriptExpression(evt)">click me</button>
 ```
 
 ### data-bind
@@ -50,11 +63,9 @@ Events such as `@click` can be listened to and the expression inside quotes will
 Two-way bindings are available by setting `data-bind`. The variable defined will affect the element when changed, and will get updated when the input is interacted with.
 
 ```html
-<!-- The "$" prefix is optional -->
 <input data-bind="$a">
-<input data-bind="a">
-<input data-bind="a" data-effect="@use(['a']) && @debounce(someCallback, 200)">
-<div data-init="$x=new Set()">
+<input data-bind="$a" data-effect="@use(['a']) && @debounce(someCallback, 200)">
+<div data-store="$x=new Set()">
   <input type="checkbox" data-bind="$x" value="42"/>
   <input type="checkbox" data-bind="$x" value="24"/>
 </div>
@@ -65,57 +76,46 @@ Two-way bindings are available by setting `data-bind`. The variable defined will
 The `data-effect` expression will be called when any variable inside is changed, or [@use](#%40use) can used to specify which variables to watch.
 
 ```html
-<div data-init="$a=4">
+<div data-store="$a=4">
   <!-- binds to whenever $a changes -->
-  <input type="text" data-effect="@use(['a']) && alert($a)" @input="$a=evt.value.toUpperCase()"/>
+  <input type="text" data-effect="@use(['a']) && alert($a)" on:input="$a=evt.value.toUpperCase()"/>
   <!-- same, but does so by looking at the expression -->
   <!-- the variable names cannot be prefixed with "$"! -->
-  <input type="text" data-effect="alert($a)" @input="$a=evt.value.toUpperCase()"/>
+  <input type="text" data-effect="alert($a)" on:input="$a=evt.value.toUpperCase()"/>
 </div>
 ```
 
 ### data-preserve
 
-Adding `data-preserve` to an element will keep that element around after a swap. This is useful for a loading indicator or an element that keeps historical notifications.
+Adding `data-preserve` to an element will prevent its internal state from being destroyed during a swap, and it will be restored into the new document after a full-page (`<body>`) swap. Use `data-preserve="always"` to also restore it during fragment swaps.
 
-### data-init, data-effect and @event syntax and variables
+```html
+<!-- Preserved across full-page swaps -->
+<div id="notifications" data-preserve></div>
 
-There are some special syntax and variables in data-init, data-effect and @event:
+<!-- Preserved across both full-page and fragment swaps -->
+<div id="sidebar" data-preserve="always"></div>
+```
+
+### data-init, data-effect and on:event syntax and variables
+
+There are some special syntax and variables in data-init, data-effect and on:event handlers:
 
 * `el` - The current DOM node.
 * `store` - A `Proxy` object which contains all the variables, but without the "$" prefix.
-* `evt` - The current `event`, inside `@event` handlers.
+* `evt` - The current `event`, inside `on:event` handlers.
 * `$foo` - Any variable prefixed with "$" will access a key inside the `store`.
-* `@foo` - Any of the "@" functions listed below are available.
+* `@foo()` - Any of the "@" functions listed below are available.
+* `$()` - DOM node selector utility. Will use querySelectorAll() if a callback is provided, otherwise querySelector().
 
-### @class
-
-The `@class` function is a shorthand for `el.classList.toggle()`.
-
-```html
-<div data-init="$x=true">
-  <div data-init data-effect="@class({'some-class: $x})"/>
-</div>
-```
-
-### @delete
-
-Issues a DELETE request using `window.fetch()` See [@get](#%40get).
+## At-functions - @foo()
 
 ### @debounce
 
 Used to debounce a function.
 
 ```html
-<input data-init @keyup="@debounce(alert(el.varlue), 500)"/>
-```
-
-### @destroy
-
-Should be used instead of `el.remove()`, since it also cleans up internal state.
-
-```html
-<button data-init @click="@remove(el)">remove me</button>
+<input data-init on:keyup="@debounce(alert(el.value), 500)"/>
 ```
 
 ### @dispatch
@@ -123,57 +123,63 @@ Should be used instead of `el.remove()`, since it also cleans up internal state.
 Shorthand for `element.dispatchEvent(new CustomEvent(eventName, {bubbles: false, ...options}))`.
 
 ```html
-<button data-init @mouseover="@dispatch(window, 'some-interaction')">remove me</button>
-<button data-init @mouseover="@dispatch(el, 'some-interaction', {bubbles: true})">remove me</button>
-<button data-init @mouseover="@dispatch(el, 'some-interaction', {detail: {foo:42}})">remove me</button>
+<button data-init on:mouseover="@dispatch(window, 'some-interaction')">hover me</button>
+<button data-init on:mouseover="@dispatch(el, 'some-interaction', {bubbles: true})">hover me</button>
+<button data-init on:mouseover="@dispatch(el, 'some-interaction', {detail: {foo:42}})">hover me</button>
 ```
 
-### @get
+### @get and @post
 
-Issues a GET request or any other request type specified. Will by default pass on every variable in the query string.
+Issues a GET or POST request or any other request type specified. Will by default pass on every variable in the query string.
 
 ```html
-<button data-init @click="@get('/foo/bar')">like a link</button>
-<button data-init @click="@get('/foo/bar', {method: 'PATCH'})">custom method</button>
-<button data-init @click="@get('/foo/bar', {search: {}})">don't send any variables</button>
-<button data-init @click="@post('/foo/bar', {search: {}, body: @j(store)})">send a form request</button>
+<button data-init on:click="@get('/foo/bar')">like a link</button>
+<button data-init on:click="@get('/foo/bar', {method: 'PATCH'})">custom method</button>
+<button data-init on:click="@get('/foo/bar', {search: {}})">don't send any variables</button>
+<button data-init on:click="@post('/foo/bar', {search: {}, body: new FormData()})">send a form request</button>
 ```
 
 ### @listen
 
-Shorthand for `element.addEventListener(eventName, callback, {signal, ...options})`, but the listener will be automatically cleaned up when [@destroy](#%40destroy) is called.
+Shorthand for `element.addEventListener(eventName, callback, options)`, but the listener will be automatically cleaned up when the element is destroyed.
 
 ```html
 <div data-init="@listen(window, 'keyup', (evt) => handleKeyUp(evt, el, store))"/>
 ```
 
-### @map
+### @set
 
-Shorthand for `[].map.call(node.querySelectorAll(selector), callback)`.
-
-```html
-<div data-init="@map(el, 'a[href]' (c) => c.classList.add('link'))">
-```
-
-### @post
-
-Issues a POST request using `window.fetch()` See [@get](#%40get).
-
-### @q
-
-Shorthand for `node.querySelector(selector)`.
+Sets a value at an index in a store array and triggers a re-render.
 
 ```html
-<div data-init="@q(el, 'a[href]')?.click())">
+<div data-store="$items=['a','b','c']">
+  <span data-effect="el.textContent = $items[0]"></span>
+  <button data-init on:click="@set('items', 0, 'changed')">Change first</button>
+</div>
 ```
 
 ### @use
 
 See [data-effect](#data-effect).
 
+## Events
+
+### Any element event `reveal`
+
+The on:reveal event is triggered each time the element is visible in the viewport.
+
+### Document event `click` and `submit`
+
+Any `click` or `submit` event that bubles up to the document will trigger a `window.fetch()` request. The following rules apply:
+
+1. Will not trigger if `target="_top"` or `target="preventDefult"`.
+2. Will not trigger if preventDefault is called.
+3. A form will not be submitted by pressing enter in an input field.
+4. The location bar will be updated to the URL of the clicked link or form with `action="get"`.
+
 ### Document event `ssr:init`
 
-The `ssr:init` event is trigger on inital load or when a fetch request is done. It will look for elements with `data-init`, `data-bind` or `data-effect` attributes and initialize them.
+The `ssr:init` event is triggered on initial load and after every `ssr:sse-patch-elements` update. It will look for elements with `data-init`, `data-bind`, `data-effect`, or `data-store` attributes and initialize them.
 
 Already initialized elements will be skipped.
 
@@ -187,21 +193,23 @@ The `ssr:sse-patch-elements` event is triggered when `window.fetch()` sees a `te
 
 ### Document body event `click`
 
-Clicking on relative links will trigger a `window.fetch()` request which again triggers `ssr:sse-patch-elements`. The exception is if the link has `target="_top"` or `@click` set.
+Clicking on relative links will trigger a `window.fetch()` request which again triggers `ssr:sse-patch-elements`. The exception is if the link has `target="_top"` or an `on:click` handler.
 
 ```html
 <a href="/foo">load with fetch()</a>
 <a href="/foo" target="_top">take over</a>
-<a href="/foo" data-init @click="...">ignored</a>
+<a href="/foo" data-init on:click="...">ignored</a>
 ```
 
 ### Window event `popstate`
 
 Will trigger a `window.fetch()` request and triggers `ssr:sse-patch-elements`.
 
+## Server side responses
+
 ### Handling of script and style elements
 
-`<script>` and `<style>` tags from `window.fetch()` responses are inserted into the current document, if the contain a `nonce` attribute.
+`<script>` and `<style>` tags from `window.fetch()` responses are always moved into the document `<head>`. Their `nonce` attribute is preserved if present, which is useful for Content Security Policy.
 
 ```html
 <!-- initially loaded document -->
@@ -209,7 +217,7 @@ Will trigger a `window.fetch()` request and triggers `ssr:sse-patch-elements`.
   <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'nonce-RandomString'">
 </head>
 
-<!-- tags loaded later on -->
+<!-- tags loaded later on (nonce preserved if set) -->
 <style nonce="RandomString">...</style>
 <script nonce="RandomString">...</script>
 ```
@@ -219,7 +227,7 @@ Will trigger a `window.fetch()` request and triggers `ssr:sse-patch-elements`.
 `text/event-stream` responses like the one below are handled. `data` can span multiple lines.
 
 ```
-<!-- will replace a node in the document -->
+<!-- will replace a node in the document (matched by id) -->
 event: patch-elements
 data: <div id="some_id"></div>
 
@@ -229,6 +237,18 @@ data: <div data-swap="append:#some_id"></div>
 
 event: patch-elements
 data: <div data-swap="prepend:#some_id"></div>
+
+<!-- will replace a node using replaceWith() -->
+event: patch-elements
+data: <div data-swap="replaceWith:#some_id"></div>
+
+<!-- will morph a node (requires Idiomorph) -->
+event: patch-elements
+data: <div data-swap="morph:#some_id"></div>
+
+<!-- will skip swapping this element -->
+event: patch-elements
+data: <div data-swap="none"></div>
 ```
 
 ### text/html
@@ -238,6 +258,8 @@ data: <div data-swap="prepend:#some_id"></div>
 ### application/json
 
 TODO: Need to handle application/json, which can be used to patch client side variables.
+
+## Special tags
 
 ### ssr-headers
 
@@ -263,26 +285,30 @@ See [data-bind](#data-bind)
 
 ### Datastar: data-class
 
-See [@class](#%40class)
+```html
+<div data-store="$x=true">
+  <div data-init data-effect="el.classList.toggle('some-class', $x)"/>
+</div>
+```
 
 ### Datastar: data-computed
 
 ```html
-<div data-init="$a=4;$b=$a*2">
+<div data-store="$a=4;$b=0">
   <input type="text" data-effect="$b=$a*2"/>
 </div>
 ```
 
 ### Datastar: data-effect
 
-See [data-bind](#data-effect)
+See [data-effect](#data-effect)
 
 ### Datastar: data-on
 
 ```html
-<div data-init="$a=42">
-  <button type="button" @click="alert($a)">
-  <button type="button" @click="@debounce(alert($a), 500)">
+<div data-store="$a=42">
+  <button type="button" on:click="alert($a)">
+  <button type="button" on:click="@debounce(alert($a), 500)">
   <button type="button" data-init="@listen(window, 'keyup', (evt) => alert(evt.key))">
   <button type="button" data-init="@listen(el, 'click', () => alert($a), {capture: true})">
   <button type="button" data-init="@listen(el, 'click', () => alert($a), {once: true})">
@@ -309,12 +335,12 @@ TODO: Need to add shortcut for `evt.preventDefult()`.
 
 ### Datastar: data-signals
 
-Note that `data-init="..."` will create a new store, and the variables are not inherited. This is currently a feature, but `data-inherit` (or something) might be added in the future.
+Note that `data-store="..."` creates a new isolated store. Child elements without their own `data-store` inherit the nearest ancestor's store.
 
 ```html
-<div data-init="$a=42;$b=false">
-  <div data-init="$c=1">
-    <!-- $a and $b are not available here -->
+<div data-store="$a=42;$b=false">
+  <div data-store="$c=1">
+    <!-- $a and $b are not available here, only $c -->
   </div>
 </div>
 ```
