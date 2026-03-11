@@ -185,7 +185,15 @@ Already initialized elements will be skipped.
 
 ### Document event `ssr:fetch-error`
 
-The `ssr:fetch-error` event is triggered when `window.fetch()` fails.
+The `ssr:fetch-error` event is triggered when `window.fetch()` fails. The callback will receive the following event detail:
+
+```javascript
+{
+    options, // The options passed to fetch()
+    url,     // The URL, as string, passed to fetch()
+    error,   // The fetch error
+}
+```
 
 ### Document event `ssr:sse-patch-elements`
 

@@ -137,7 +137,7 @@
       return r
     } catch (error) {
       if (error.name != 'AbortError') {
-        dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {q: o, u, error}})
+        dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {options: o, url: u, error}})
       }
       if (!o.method || o.method == 'GET') {
         setTimeout(() => $n.parentNode && fetch($n, u, o), 3000)
