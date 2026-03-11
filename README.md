@@ -1,13 +1,15 @@
-<div align="center">
-    <pre>___ ___ _ __ _ ___
+```
+ ___ ___ _ __ _ ___
 / __/ __| '__| / __|
 \__ \__ \ |_ | \__ \
 |___/___/_(_)| |___/
             _/ |
-           |__/</pre>
-</div>
+           |__/
+```
 
-An alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev).
+`ssr.js` is an alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev), which provides many if the same features, but focuses on being plug&play, instead of needing to add a bunch of `x-` or `data-` attributes for the most common cases. Pairing ssr.js with [pico.css](https://picocss.com/) will make your html very clean and easy to work with.
+
+This project is especially suitable for backend developers, that does not want to maintain a big full stack node.js framework, but still want to add some interactivity to their server rendered pages without writing a lot of JavaScript. Full stack and frontend developers can also benefit from the simplicity and hackability of ssr.js, making it suit their specific needs, without all the extra bloat.
 
 <ul>
   <li><a href="#size-matter">Size matter</a></li>
