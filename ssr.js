@@ -30,7 +30,6 @@
       const $n = entry.target
       if (!entry.isIntersecting) continue
       if ($n.getAttribute('on:reveal')) dispatch($n, 'reveal')
-      O.unobserve($n)
     }
   })
 
