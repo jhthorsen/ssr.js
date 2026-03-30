@@ -202,6 +202,20 @@
   }
 
   /**
+   * Used intenrally to swap elements in the current DOM, with new elements.
+   * @param {Element} $p - Parent element that contain elements with [data-swap].
+   */
+  function swapElements($p) {
+    $($p, '[data-swap]', ($c) => {
+      if ($c.dataset.swap == 'none') return
+      const swap = $c.dataset.swap.split(':', 2)
+      const $o = $($d, swap[1])
+      if (swap[0] == 'morph' || swap[0] == 'replaceWith') destroy($o)
+      swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
+    })
+  }
+
+  /**
    * Moves script and style elements from a fragment to the document head.
    * @param {Element} $p - Parent element that contains the script and style elements.
    * @param {string} url - URL that can be used to identify the owner of the script or style element for cleanup purposes.
@@ -348,30 +362,23 @@
       scriptAndStyle($p, url)
       $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
-      if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
+      if ($d.querySelector('data-swap')) swapElements($p)
+      else if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
-      const $p = $d.createRange().createContextualFragment(/^\s*<tr\b/.test(detail.data) ? `<table data-template="tr">${detail.data}</table>` : detail.data)
+      const $p = $d.createRange().createContextualFragment(detail.data)
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
       scriptAndStyle($p, url)
       $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
-      $($p, '[data-swap]', ($c) => {
-        if ($c.dataset.swap == 'none') return
-        const swap = $c.dataset.swap.split(':', 2)
-        const $o = $($d, swap[1])
-        if (swap[0] == 'morph' || swap[0] == 'replaceWith') destroy($o)
-        swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
-      })
-      for (const $t of $p.children) {
+      swapElements($p)
+      for (const $c of $p.children) {
         if ($t.dataset.swap == 'none') continue
-        for (const $c of $t.dataset.template ? $t.querySelectorAll($t.dataset.template) : [$t]) {
-          const $o = $c.id && $($d, `#${$c.id}`)
-          if ($o) {
-            destroy($o)
-            Idiomorph ? Idiomorph.morph($o, $c) : $o.replaceWith($c)
-            setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
-          } else {
-            console.warn({message: "Can't swap unknown element", $c})
-          }
+        const $o = $c.id && $($d, `#${$c.id}`)
+        if ($o) {
+          destroy($o)
+          Idiomorph ? Idiomorph.morph($o, $c) : $o.replaceWith($c)
+          setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
+        } else {
+          console.warn({message: "Can't swap unknown element", $c})
         }
       }
     }

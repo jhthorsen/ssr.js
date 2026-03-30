@@ -117,6 +117,67 @@ Adding `data-preserve` to an element will prevent its internal state from being 
 <div id="sidebar" data-preserve="always"></div>
 ```
 
+### data-swap
+
+One of the main functionalities in ssr.js is to swap DOM nodes that are retrieved from the server. Here are the main "plug&play" rules, that does not require `data-swap`:
+
+1. A complete document is identified by having a `<body>` tag in the response. If such a tag is seen, then the current `<title>` is replaced and the whole document is swapped out.
+2. In other cases, the main rule is to replace any existing element that has an `id` attribute matching the `id` attribute of any direct child node in the response.
+3. See also [Handling of script and style elements](#handling-of-script-and-style-elements)
+
+Any element in the response containing a `data-swap` attribute will be handled before swapping other child elements, and the complete `<body>` will *not* be replaced, if an element with `data-swap` is found. The `data-swap` attribute follows these rules:
+
+* `data-swap="none"` - Ignore this element.
+* `data-swap="morph:selector"` - Use [Idiomorph](https://github.com/bigskysoftware/idiomorph) to replace the element.
+* `data-swap="replaceWith:selector"` - Replace the element with standard [DOM operation](https://developer.mozilla.org/en-US/docs/Web/API/Element/replaceWith).
+* `data-swap="append:selector"` - Append the element with standard [DOM operation](https://developer.mozilla.org/en-US/docs/Web/API/Element/append).
+* `data-swap="prepend:selector"` - Prepend the element with standard [DOM operation](https://developer.mozilla.org/en-US/docs/Web/API/Element/prepend).
+* `data-swap="before:selector"` - Insert the element before with standard [DOM operation](https://developer.mozilla.org/en-US/docs/Web/API/Element/before).
+* `data-swap="after:selector"` - Insert the element after with standard [DOM operation](https://developer.mozilla.org/en-US/docs/Web/API/Element/after).
+* `data-swap="remove:selector"` - Remove the element with standard [DOM operation](https://developer.mozilla.org/en-US/docs/Web/API/Element/remove).
+
+The `selector` part above is passed on to `querySelector()` and follows standard CSS selector rules.
+
+Elements such as `<tr>` can't be parsed directly by JavaScript, so to work with partial rows, you need to wrap the element or elements inside a `<table>` element. Example:
+
+```html
+<table data-swap="none"><!-- The table element will be ignored -->
+  <tr data-swap="append:#my-table tbody">...</tr><!-- The table row will be appended -->
+</table>
+```
+
+Here is a partial response example, where the `id` will target an existing element in the current DOM tree:
+
+```html
+<div id="any-valid-id">...</div>
+<div id="some-other-valid-id">...</div>
+```
+
+And here is a complete response example:
+
+```html
+<html>
+<head>
+  <title>Will replace existing title</title>
+</head>
+<body class="will-replace-existing">
+  And content will replace existing.
+</body>
+</html>
+```
+
+### data-type
+
+Adding `data-type="number"` to an element will force the type to be a number before placing the value into the store.
+
+```html
+<select data-type="number">...</select>
+```
+
+ssr.js:dataset.swap
+ssr.js:dataset.template
+ssr.js:dataset.type
+
 ### data-init, data-effect and on:event syntax and variables
 
 There are some special syntax and variables in data-init, data-effect and on:event handlers:
