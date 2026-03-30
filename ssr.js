@@ -410,7 +410,6 @@
     if (evt.target?.closest('input, select, textarea')) evt.preventDefault()
     if ($n.target == 'preventDefault') evt.preventDefault()
     if (evt.defaultPrevented) return
-    if ($n.action == 'get') history.pushState({}, null, $n.action)
 
     const r = {method: $n.method}
     const b = new FormData($n)
@@ -420,8 +419,10 @@
       r.headers = new Headers()
       r.headers.append('content-type', t)
       r.body = t == c ? new URLSearchParams(b) : b
+      history.pushState({}, null, $n.action)
     } else {
       r.search = Object.fromEntries(b.entries())
+      history.pushState({}, null, $n.action + '?' + new URLSearchParams(b).toString())
     }
 
     const $s = evt.submitter
