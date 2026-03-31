@@ -441,7 +441,7 @@
 
     const m = $n.dataset.history || 'pushState';
     if (m != 'none' && (location.pathname !== url.pathname || location.search !== url.search))
-      history[m]($n._S || {}, null, url.pathname + url.search)
+      history[m]({}, null, url.pathname + url.search)
 
     evt.preventDefault()
     fetch($d.body, url.pathname + url.search, {})
