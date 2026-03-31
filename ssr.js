@@ -400,9 +400,9 @@
     const url = new URL($n.href || $n.getAttribute('href'), location.href)
     if (url.origin !== location.origin) return // external link
 
-    if (location.pathname !== url.pathname || location.search !== url.search) {
-      history.pushState({}, null, url.pathname + url.search)
-    }
+    const m = $n.dataset.history || 'pushState';
+    if (m != 'none' && (location.pathname !== url.pathname || location.search !== url.search))
+      history[m]($n._S || {}, null, url.pathname + url.search)
 
     evt.preventDefault()
     fetch($d.body, url.pathname + url.search, {})
@@ -418,24 +418,26 @@
     if ($n.target == 'preventDefault') evt.preventDefault()
     if (evt.defaultPrevented) return
 
+    const u = new URL($n.action, location.href);
     const r = {method: $n.method}
     const b = new FormData($n)
+    const m = $n.dataset.history || 'pushState';
     if (r.method.toLowerCase() == 'post') {
       const c = 'application/x-www-form-urlencoded'
       const t = $n.enctype || c
       r.headers = new Headers()
       r.headers.append('content-type', t)
       r.body = t == c ? new URLSearchParams(b) : b
-      history.pushState({}, null, $n.action)
+      history[m]({}, null, $n.action)
     } else {
-      r.search = Object.fromEntries(b.entries())
-      history.pushState({}, null, $n.action + '?' + new URLSearchParams(b).toString())
+      for (const [k, v] of b.entries()) u.searchParams.add(k, v)
+      history[m]({}, null, u.toString())
     }
 
     const $s = evt.submitter
     if ($s) $s.ariaBusy = 'true'
     evt.preventDefault()
-    fetch($d.body, $n.action, r).finally(() => {
+    fetch($d.body, u, r).finally(() => {
       $n.ariaBusy = 'false'
       if ($s) $s.ariaBusy = 'false'
     })

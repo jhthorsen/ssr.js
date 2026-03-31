@@ -105,6 +105,14 @@ The `data-effect` expression will be called when any variable inside is changed,
 </div>
 ```
 
+### data-history
+
+A `data-history` attribute can be set on `a[href]` or `form` elements to specify if the location bar should be updated on `click` or `submit`.
+
+* `data-history="pushState"` - This is the default value, if the attribute is not present.
+* `data-history="replaceState"` - Will replace the current URL.
+* `data-history="none"` - Will prevent `history.pushState()` from being called.
+
 ### data-preserve
 
 Adding `data-preserve` to an element will prevent its internal state from being destroyed during a swap, and it will be restored into the new document after a full-page (`<body>`) swap. Use `data-preserve="always"` to also restore it during fragment swaps.
