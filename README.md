@@ -31,16 +31,17 @@ Each commit messages should contain the latest size, but below is just to give a
 
 ```sh
 # ssr.js
-$ sed -E s:.*// .*$::; s:^[ ]*/?\*.*::g; s:^[ ]*:: ssr.js | wc
-     281    1280    8836
-$ gzip -ck9 ssr.js | wc -c
-    5939
-$ brotli -ckq 6 ssr.js | wc -c
-    5599
-$ uglifyjs -m properties,toplevel ssr.js | wc -c
-    3098
-$ uglifyjs -m properties,toplevel ssr.js | wc -c
-    2921
+./dev.sh size
+$ sed -E s:.*// .*$::; s:^[ ]*/?\*.*::g; s:^[ ]*:: ssr.js
+     293    1356    9377
+$ gzip -ck9 -
+    3585
+$ brotli -ckq 6 -
+    3392
+$ uglifyjs -m properties,toplevel ssr.js
+    3165
+$ uglifyjs -m properties,toplevel ssr.js
+    2990
 
 # datastar and htmx
 $ curl -L https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles/datastar.js | wc -c
