@@ -268,7 +268,7 @@ Any `click` or `submit` event that bubles up to the document will trigger a `win
 
 ### Document event `ssr:init`
 
-The `ssr:init` event is triggered on initial load and after every `ssr:sse-patch-elements` update. It will look for elements with `data-init`, `data-bind`, `data-effect`, or `data-store` attributes and initialize them.
+The `ssr:init` event is triggered on initial load and after every `ssr:response` update. It will look for elements with `data-init`, `data-bind`, `data-effect`, or `data-store` attributes and initialize them.
 
 Already initialized elements will be skipped.
 
@@ -284,13 +284,23 @@ The `ssr:fetch-error` event is triggered when `window.fetch()` fails. The callba
 }
 ```
 
-### Document event `ssr:sse-patch-elements`
+### Document event `ssr:response`
 
-The `ssr:sse-patch-elements` event is triggered when `window.fetch()` sees a `text/html` response or a `sse-patch-elements` event is received from a `text/event-stream` response.
+The `ssr:response` event is triggered when `window.fetch()` returns a response with a content type other than `text/html` or `text/event-stream`. This allows you to handle responses such as `application/json` in your own code. The callback receives the following event detail. See [application/json](#application-json) for example.
+
+The event callback receives the following event detail:
+
+```javascript
+{
+    html,     // The response text, if the content-type is "text/html"
+    response, // The Response object from fetch()
+    url,      // The URL, as string, passed to fetch()
+}
+```
 
 ### Document body event `click`
 
-Clicking on relative links will trigger a `window.fetch()` request which again triggers `ssr:sse-patch-elements`. The exception is if the link has `target="_top"` or an `on:click` handler.
+Clicking on relative links will trigger a `window.fetch()` request which again triggers `ssr:response`. The exception is if the link has `target="_top"` or an `on:click` handler.
 
 ```html
 <a href="/foo">load with fetch()</a>
@@ -300,7 +310,7 @@ Clicking on relative links will trigger a `window.fetch()` request which again t
 
 ### Window event `popstate`
 
-Will trigger a `window.fetch()` request and triggers `ssr:sse-patch-elements`.
+Will trigger a `window.fetch()` request and triggers `ssr:response`.
 
 ## Server side responses
 
@@ -354,7 +364,16 @@ data: <div data-swap="none"></div>
 
 ### application/json
 
-TODO: Need to handle application/json, which can be used to patch client side variables.
+Use the `ssr:response` event to handle JSON responses and patch client-side variables:
+
+```javascript
+document.addEventListener('ssr:response', async ({detail}) => {
+  const ct = detail.response.headers.get('content-type') ?? ''
+  if (!ct.startsWith('application/json')) return
+  const data = await detail.response.json()
+  // patch your store here
+})
+```
 
 ## Special tags
 

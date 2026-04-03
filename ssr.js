@@ -138,11 +138,9 @@
             buf = buf.slice(i + 1)
           }
         }
-      } else if (ct.startsWith('text/html')) {
-        const data = await r.text()
-        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {data, url}})
       } else {
-        console.warn(`TODO ${ct || r.url.toString()}`)
+        const html = ct.startsWith('text/html') && await r.text()
+        dispatch($n, 'ssr:response', {bubbles: true, detail: {html, response: r, url}})
       }
       return r
     } catch (error) {
@@ -378,9 +376,9 @@
   })
 
   /**
-   * Listens for the 'ssr:sse-patch-elements' event on the document
-   * element and updates the DOM based on the provided HTML data.
-   * When the 'ssr:sse-patch-elements' event is triggered, it checks if
+   * Listens for the 'ssr:response' event on the document element,
+   * parses the text as html and updates the DOM.
+   * When the 'ssr:response' event is triggered, it checks if
    * the provided HTML data contains a `<body>` tag. If it does, it
    * replaces the entire body content with the new content while
    * preserving elements marked with `data-preserve`. If it doesn't
@@ -389,10 +387,11 @@
    * and style elements and `data-swap` attributes to determine how to
    * swap elements in the DOM.
    */
-  listen($w, $d, 'ssr:sse-patch-elements', ({detail}) => {
+  listen($w, $d, 'ssr:response', ({detail}) => {
+    if (!detail.html) return
     const url = detail.url?.toString() ?? ''
-    if (detail.data.lastIndexOf('<body', 4096) !== -1) {
-      const $p = new DOMParser().parseFromString(detail.data, 'text/html')
+    if (detail.html.lastIndexOf('<body', 4096) !== -1) {
+      const $p = new DOMParser().parseFromString(detail.html, 'text/html')
       let $c
       $($d, '[data-owner]', ($c) => $c.remove())
       destroy($d.body)
@@ -402,7 +401,7 @@
       if ($($p, '[data-swap]')) swapElements($p)
       else if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
-      const $p = $d.createRange().createContextualFragment(detail.data)
+      const $p = $d.createRange().createContextualFragment(detail.html)
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
       scriptAndStyle($p, url)
       $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
@@ -439,7 +438,7 @@
     const url = new URL($n.href || $n.getAttribute('href'), location.href)
     if (url.origin !== location.origin) return // external link
 
-    const m = $n.dataset.history || 'pushState';
+    const m = $n.dataset.history || 'pushState'
     if (m != 'none' && (location.pathname !== url.pathname || location.search !== url.search))
       history[m]({}, null, url.pathname + url.search)
 
@@ -460,10 +459,10 @@
     if ($n.target == 'preventDefault') evt.preventDefault()
     if (evt.defaultPrevented) return
 
-    const u = new URL($n.action, location.href);
+    const u = new URL($n.action, location.href)
     const r = {method: $n.method}
     const b = new FormData($n)
-    const m = $n.dataset.history || 'pushState';
+    const m = $n.dataset.history || 'pushState'
     if (r.method.toLowerCase() == 'post') {
       const c = 'application/x-www-form-urlencoded'
       const t = $n.enctype || c
