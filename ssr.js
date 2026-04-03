@@ -471,9 +471,7 @@
     if ($n.target == 'preventDefault') evt.preventDefault()
     if (evt.defaultPrevented) return
 
-    const u = new URL($n.action, L.href)
-    const r = {method: $n.method}
-    const b = new FormData($n)
+    const [u, b, r] = [new URL($n.action, L.href), new FormData($n), {method: $n.method}]
     const m = $n.dataset.history || 'pushState'
     if (r.method.toLowerCase() == 'post') {
       const c = 'application/x-www-form-urlencoded'
@@ -483,14 +481,14 @@
       r.body = t == c ? new URLSearchParams(b) : b
       H[m]({}, null, $n.action)
     } else {
-      for (const [k, v] of b.entries()) u.searchParams.add(k, v)
+      for (const [k, v] of b.entries()) u.searchParams.append(k, v)
       H[m]({}, null, u.toString())
     }
 
     const $s = evt.submitter
     if ($s) $s.ariaBusy = 'true'
     evt.preventDefault()
-    fetch($d.body, u, r).finally(() => {
+    fetch($d.body, u.toString(), r).finally(() => {
       $n.ariaBusy = 'false'
       if ($s) $s.ariaBusy = 'false'
     })
