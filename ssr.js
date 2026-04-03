@@ -356,7 +356,7 @@
         const read = i == undefined ? () => s[k] : () => s[k][i]
 
         if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
-          const byVal = $n.hasAttribute('value')
+          const byVal = $n.hasAttribute('value') || $n.tagName == 'SELECT'
           listen($n, $n, 'change', () => { write(byVal ? $n.value : $n.checked); s._D.render(k) })
           listen($n, $n, 'ssr:render', () => { $n.checked = byVal ? $n.value == read() : read() })
           write(byVal ? $n.value : $n.checked)
