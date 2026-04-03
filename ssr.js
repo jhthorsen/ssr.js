@@ -1,7 +1,17 @@
-;(function ($w, $d) {
+;(function ($w, $d, H, L) {
   const data_sel = '[data-init], [data-bind], [data-effect], [data-store]'
   const S = {}
   const has = Object.hasOwn
+
+  /**
+   * Monkey-patches history.pushState and history.replaceState so that `L`
+   * (the last-fetched URL) stays in sync regardless of which code calls them,
+   * including third-party libraries.
+   */
+  ;['pushState', 'replaceState'].forEach(m => {
+    const orig = H[m].bind(H)
+    H[m] = (state, title, url) => { orig(state, title, url); url && (L = new URL(url, L.href)) }
+  })
 
   /**
    * Dispatches a custom event on a given node.
@@ -105,7 +115,7 @@
     const ac = new AbortController()
     $n._C[url] = [() => ac.abort()]
 
-    const u = new URL(url, location.href)
+    const u = new URL(url.replace(/\#.*/, ''), L.href)
     if (o.search) toParams(o.search, u.searchParams)
 
     const $h = $($d.head, 'meta[name=ssr-headers]')
@@ -414,7 +424,7 @@
           Idiomorph ? Idiomorph.morph($o, $c) : $o.replaceWith($c)
           setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
         } else {
-          console.warn({message: "Can't swap unknown element", $c})
+          console.warn("Can't swap unknown element", $c, $p)
         }
       }
     }
@@ -431,16 +441,18 @@
     if (evt.target?.closest('button, input, select, textarea')) return
 
     const $n = evt.target?.closest('[href]')
-    if (!$n || $n.target == '_top') return
+    if (!$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
     if ($n.target == 'preventDefault') evt.preventDefault()
     if (evt.defaultPrevented) return
 
-    const url = new URL($n.href || $n.getAttribute('href'), location.href)
-    if (url.origin !== location.origin) return // external link
+    const url = new URL($n.href || $n.getAttribute('href'), L.href)
+    const l = location
+    if (url.origin !== l.origin) return
+    if (url.hash && url.pathname === l.pathname && url.search === l.search) return
 
     const m = $n.dataset.history || 'pushState'
-    if (m != 'none' && (location.pathname !== url.pathname || location.search !== url.search))
-      history[m]({}, null, url.pathname + url.search)
+    if (m != 'none' && (l.pathname !== url.pathname || l.search !== url.search))
+      H[m]({}, null, url.pathname + url.search)
 
     evt.preventDefault()
     fetch($d.body, url.pathname + url.search, {})
@@ -459,7 +471,7 @@
     if ($n.target == 'preventDefault') evt.preventDefault()
     if (evt.defaultPrevented) return
 
-    const u = new URL($n.action, location.href)
+    const u = new URL($n.action, L.href)
     const r = {method: $n.method}
     const b = new FormData($n)
     const m = $n.dataset.history || 'pushState'
@@ -469,10 +481,10 @@
       r.headers = new Headers()
       r.headers.append('content-type', t)
       r.body = t == c ? new URLSearchParams(b) : b
-      history[m]({}, null, $n.action)
+      H[m]({}, null, $n.action)
     } else {
       for (const [k, v] of b.entries()) u.searchParams.add(k, v)
-      history[m]({}, null, u.toString())
+      H[m]({}, null, u.toString())
     }
 
     const $s = evt.submitter
@@ -489,11 +501,13 @@
    * location to update the page content accordingly.
    */
   listen($w, $w, 'popstate', () => {
-    fetch($d.body, location.href, {})
+    if (L.pathname === location.pathname && L.search === location.search) return
+    L = location
+    fetch($d.body, L.pathname + L.search, {})
   })
 
   // Defines a root store on the body element and dispatches 'ssr:init'
   // to initialize the application.
   if (!$d.body.dataset.store) $d.body.dataset.store = '$root=true'
   dispatch($d, 'ssr:init')
-})(window, document)
+})(window, document, history, location)
