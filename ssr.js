@@ -46,7 +46,7 @@
      * @param {number} s - Delay in ms.
      */
     debounce: (k, $n, cb, s) => {
-      ;($n._T ??= {})[k] && clearTimeout($n._T[k])
+      clearTimeout(($n._T ??= {})[k])
       $n._T[k] = setTimeout(cb, s)
     },
     dispatch,
@@ -81,7 +81,7 @@
    * @param {Node} $n - DOM node to destroy.
    */
   function destroy($n) {
-    if ($n.dataset.preserve != undefined) return
+    if ($n.dataset.preserve !== undefined) return
     obs.unobserve($n)
     $($n, data_sel, destroy)
     for (const k in $n._C ?? {}) for (const c of $n._C[k]) c()
@@ -127,7 +127,7 @@
             const i = buf.indexOf('\n')
             if (i < 0) break
             if (i) {
-              const [k, v] = buf.slice(0, i).split(/:\s/, 2)
+              const [k, v] = buf.replace(/\r/g, '').slice(0, i).split(/:\s/, 2)
               detail[k] ??= ''
               detail[k] += v
             } else {
@@ -399,7 +399,7 @@
       scriptAndStyle($p, url)
       $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
-      if ($d.querySelector('data-swap')) swapElements($p)
+      if ($($p, '[data-swap]')) swapElements($p)
       else if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
       const $p = $d.createRange().createContextualFragment(detail.data)

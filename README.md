@@ -436,7 +436,7 @@ See [data-effect](#data-effect)
 </div>
 ```
 
-TODO: Need to add shortcut for `evt.preventDefult()`.
+TODO: Need to add shortcut for `evt.preventDefault()`.
 
 ### Datastar: data-on-load
 
