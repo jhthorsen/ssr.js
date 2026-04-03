@@ -1,43 +1,522 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <title>ssr.js demo</title>
+  <title>ssr.js – Feature Examples</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    .demo { padding: 1rem; border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); margin-bottom: 1rem }
+    .hint { font-size: .8rem; color: var(--pico-muted-color); margin: 0 0 .5rem }
+    output { display: block; font-family: monospace; background: var(--pico-code-background-color); padding: .5rem; border-radius: var(--pico-border-radius); min-height: 2rem; white-space: pre-wrap; margin-top: .5rem }
+    output.log { max-height: 8rem; overflow-y: auto }
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem }
+    [hidden] { display: none !important }
+  </style>
 </head>
-
 <body>
-  <header id="header">
-    <div class="container">
-      <nav>
-        <ul>
-          <li><a href="index.html">🎩 ssr.js</a></li>
-        </ul>
-      </nav>
-    </div>
+  <header>
+    <nav class="container">
+      <ul><li><a href="https://github.com/jhthorsen/ssr.js"><strong>🎩 ssr.js</strong></a></li></ul>
+      <ul>
+        <li><a href="#stores">Stores</a></li>
+        <li><a href="#effects">Effects</a></li>
+        <li><a href="#binding">Binding</a></li>
+        <li><a href="#events">Events</a></li>
+        <li><a href="#swaps">Swaps</a></li>
+        <li><a href="#network">Network</a></li>
+      </ul>
+    </nav>
   </header>
-  <main role="document" class="container">
-    <p data-init="console.log($($(document, 'main'), 'p', i => i))"
-       data-effect="console.log('effect')">Look in the console</p>
-    <p><button data-init on:click="alert('on:click ftw!')">Click me!</button></p>
 
-    <p data-init="$x=42">
-      <a href="#add" data-init on:click="$x++" target="preventDefault">Add</a>
-      <span data-effect="el.textContent = $x"></span>,
-      debounced: <span data-effect="@debounce(el.textContent = $x, 500)"></span>
-    </p>
+  <main class="container">
 
-    <form data-init="$v=''">
-      <fieldset role="group">
-        <input type="text" data-bind="v" placeholder="Type something">
-        <button type="button" data-init on:click="$v=''">Clear</button>
-      </fieldset>
-      <span data-effect="el.textContent = $v.toUpperCase()"></span>
-    </form>
+    <!-- =====================================================
+         STORES & REACTIVITY
+    ===================================================== -->
+    <section id="stores">
+      <h2>Stores &amp; Reactivity</h2>
+
+      <h3>Counter — data-store / data-effect</h3>
+      <div class="demo">
+        <p class="hint">data-store initialises reactive variables. data-effect re-runs when they change.</p>
+        <div data-store="$count=0">
+          <button data-init on:click="$count--" style="width:3rem">−</button>
+          <strong data-effect="el.textContent = $count"
+            style="display:inline-block;min-width:3rem;text-align:center"></strong>
+          <button data-init on:click="$count++" style="width:3rem">+</button>
+          <button data-init on:click="$count=0">Reset</button>
+        </div>
+      </div>
+
+      <h3>Multiple variables in one store</h3>
+      <div class="demo">
+        <p class="hint">A store can hold any number of reactive variables, each updated independently.</p>
+        <div data-store="$greeting='Hello'; $name='World'">
+          <select data-bind="greeting">
+            <option>Hello</option><option>Hi</option><option>Hey</option><option>Hola</option>
+          </select>
+          <input type="text" data-bind="name" placeholder="Name">
+          <output data-effect="el.value = $greeting + ', ' + ($name || 'noname') + '!'"></output>
+        </div>
+      </div>
+
+      <h3>Isolated nested stores</h3>
+      <div class="demo">
+        <p class="hint">Each data-store creates an isolated scope. Counter A and B both use <code>$n</code> without interfering.</p>
+        <div style="display:flex;gap:2rem;flex-wrap:wrap">
+          <div data-store="$n=0">
+            Counter A
+            <button data-init on:click="$n++">+</button>
+            <strong data-effect="el.textContent = $n"></strong>
+          </div>
+          <div data-store="$n=0">
+            Counter B
+            <button data-init on:click="$n++">+</button>
+            <strong data-effect="el.textContent = $n"></strong>
+          </div>
+        </div>
+      </div>
+
+      <h3>Store inheritance across deep nesting</h3>
+      <div class="demo">
+        <p class="hint">Elements without data-store climb the DOM tree to find an ancestor's store.</p>
+        <div data-store="$msg='hello'">
+          <fieldset><legend>Three levels deep</legend>
+            <div><div><div>
+              <input data-bind="msg" placeholder="Edit from here…">
+            </div></div></div>
+          </fieldset>
+          <output data-effect="el.value = $msg.toUpperCase()"></output>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         EFFECTS
+    ===================================================== -->
+    <section id="effects">
+      <h2>Effects (data-effect)</h2>
+
+      <h3>Selective reactivity with @use</h3>
+      <div class="demo">
+        <p class="hint">
+          Without @use, an effect reruns whenever any <code>$variable</code> it reads changes.
+          <code>@use(['key'])</code> restricts reruns to listed keys only.
+        </p>
+        <div data-store="$a=0; $b=0; $runsAB=0; $runsB=0">
+          <div class="row">
+            <button data-init on:click="$a++">Increment A (<span data-effect="el.textContent=$a"></span>)</button>
+            <button data-init on:click="$b++">Increment B (<span data-effect="el.textContent=$b"></span>)</button>
+          </div>
+          <p data-effect="$runsAB++; el.textContent = 'Watches $a and $b — ran ' + $runsAB + ' time(s)'"></p>
+          <p data-effect="@use(['b']) && ($runsB++) && (el.textContent = 'Watches $b only — ran ' + $runsB + ' time(s)')"></p>
+        </div>
+      </div>
+
+      <h3>Computed / derived values</h3>
+      <div class="demo">
+        <p class="hint">Derive values from multiple store keys in a single effect.</p>
+        <div data-store="$a=3; $b=4">
+          <label>a <input type="number" data-bind="a" data-type="number" style="width:6rem"></label>
+          <label>b <input type="number" data-bind="b" data-type="number" style="width:6rem"></label>
+          <p data-effect="el.textContent = 'Hypotenuse c = ' + Math.sqrt($a*$a + $b*$b).toFixed(4)"></p>
+        </div>
+      </div>
+
+      <h3>Class, style, hidden</h3>
+      <div class="demo">
+        <p class="hint">Any DOM property can be driven reactively by a data-effect expression.</p>
+        <style>.hl { outline: 3px solid gold; padding: .5rem; border-radius: 4px; transition: outline .2s }</style>
+        <div data-store="$on=false; $color='#4a90d9'">
+          <label><input type="checkbox" data-bind="on"> Show box</label>
+          <input type="color" data-bind="color" value="#4a90d9">
+          <div data-init
+            data-effect="el.hidden = !$on; el.style.background = $color; el.textContent = 'background: ' + $color"
+            style="margin-top:.5rem;border-radius:4px;padding:.5rem">
+          </div>
+        </div>
+      </div>
+
+      <h3>el, store, and $() in expressions</h3>
+      <div class="demo">
+        <p class="hint">
+          <code>el</code> is the current DOM node. <code>store</code> is the raw proxy (no <code>$</code> prefix).
+          <code>$(parent, selector)</code> is querySelector.
+        </p>
+        <div data-store="$sel='h2'">
+          <input data-bind="sel" placeholder="CSS selector e.g. h2" style="width:14rem">
+          <output data-effect="
+            const found = $sel && $(document, $sel);
+            el.value = found ? found.tagName + ': ' + (found.textContent||'').trim().slice(0,60) : 'not found'
+          "></output>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         TWO-WAY BINDING
+    ===================================================== -->
+    <section id="binding">
+      <h2>Two-way Binding (data-bind)</h2>
+
+      <h3>Text and number inputs</h3>
+      <div class="demo">
+        <p class="hint">data-type="number" coerces the stored value to a number automatically.</p>
+        <div data-store="$name=''; $age=0">
+          <input type="text" data-bind="name" placeholder="Name">
+          <input type="number" data-bind="age" data-type="number" placeholder="Age" style="width:8rem">
+          <output data-effect="el.value = $name ? $name + ' is ' + $age + ' year(s) old.' : ''"></output>
+        </div>
+      </div>
+
+      <h3>Checkbox — boolean</h3>
+      <div class="demo">
+        <p class="hint">Without a value attribute, a checkbox binding stores a boolean.</p>
+        <div data-store="$agreed=false">
+          <label><input type="checkbox" data-bind="agreed"> I agree</label>
+          <output data-effect="el.value = $agreed ? '✅ agreed' : '❌ not agreed'"></output>
+        </div>
+      </div>
+
+      <h3>Radio buttons — value binding</h3>
+      <div class="demo">
+        <p class="hint">With a value attribute the binding compares the element value to the stored string.</p>
+        <div data-store="$size='m'">
+          <label><input type="radio" name="sz" data-bind="size" value="s"> S</label>
+          <label><input type="radio" name="sz" data-bind="size" value="m"> M</label>
+          <label><input type="radio" name="sz" data-bind="size" value="l"> L</label>
+          <label><input type="radio" name="sz" data-bind="size" value="xl"> XL</label>
+          <output data-effect="el.value = 'selected: ' + $size"></output>
+        </div>
+      </div>
+
+      <h3>Select element</h3>
+      <div class="demo">
+        <div data-store="$lang='js'">
+          <select data-bind="lang">
+            <option value="js">JavaScript</option>
+            <option value="ts">TypeScript</option>
+            <option value="py">Python</option>
+            <option value="rs">Rust</option>
+            <option value="go">Go</option>
+          </select>
+          <output data-effect="el.value = 'chosen: ' + $lang"></output>
+        </div>
+      </div>
+
+      <h3>Array index — data-bind="items[n]"</h3>
+      <div class="demo">
+        <p class="hint">Bracket notation binds an input to a specific array index.</p>
+        <div data-store="$items=['foo','bar','baz']">
+          <input data-bind="items[0]" placeholder="[0]" style="width:7rem">
+          <input data-bind="items[1]" placeholder="[1]" style="width:7rem">
+          <input data-bind="items[2]" placeholder="[2]" style="width:7rem">
+          <output data-effect="el.value = JSON.stringify($items)"></output>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         EVENTS
+    ===================================================== -->
+    <section id="events">
+      <h2>Events</h2>
+
+      <h3>on:event — evt variable</h3>
+      <div class="demo">
+        <p class="hint">
+          Any DOM event can be listened to via <code>on:eventname</code>.
+          <code>evt</code> is the native Event. The element also needs <code>data-init</code> to be discovered.
+        </p>
+        <div data-store="$log=''">
+          <button data-init on:click="$log = 'click at ' + new Date().toLocaleTimeString()">Click me</button>
+          <span data-init on:mouseover="$log = 'hover at ' + new Date().toLocaleTimeString()"
+            style="cursor:pointer;text-decoration:underline dotted;margin-left:.5rem">Hover me</span>
+          <output data-effect="el.value = $log || '(nothing yet)'"></output>
+        </div>
+      </div>
+
+      <h3>@debounce</h3>
+      <div class="demo">
+        <p class="hint">The debounced value only updates 500 ms after typing stops.</p>
+        <div data-store="$live=''; $debounced=''">
+          <input data-init
+            on:input="$live = el.value; @debounce(($debounced = el.value), 500)"
+            placeholder="Type something…">
+          <output data-effect="el.value = 'live:      ' + $live + '\ndebounced: ' + $debounced"></output>
+        </div>
+      </div>
+
+      <h3>@dispatch — fire a custom event</h3>
+      <div class="demo">
+        <p class="hint">
+          @dispatch(target, eventName, options) wraps CustomEvent. Passing <code>{bubbles: true}</code>
+          lets the event propagate up so a parent @listen can catch it.
+        </p>
+        <div data-store="$pings=[]"
+          data-init="@listen(el, 'ping', evt => { $pings = [...$pings, 'ping #' + $pings.length + ' — t=' + evt.detail.t] })">
+          <button data-init
+            on:click="@dispatch(el, 'ping', {bubbles: true, detail: {t: Date.now()}})">
+            Send ping (bubbles up to parent div)
+          </button>
+          <output class="log" data-effect="el.value = $pings.join('\n') || '(none yet)'"></output>
+        </div>
+      </div>
+
+      <h3>@listen — programmatic listener with automatic cleanup</h3>
+      <div class="demo">
+        <p class="hint">
+          @listen registers a listener that is automatically removed when the element is destroyed.
+          Here it tracks the last 10 keys pressed anywhere on the page.
+        </p>
+        <div data-store="$keys=[]"
+          data-init="@listen(window, 'keydown', evt => { $keys = [...$keys.slice(-9), evt.key] })">
+          <p>Click anywhere on the page then press keys:</p>
+          <output data-effect="el.value = $keys.length ? $keys.join(' → ') : '(no keys yet)'"></output>
+        </div>
+      </div>
+
+      <h3>on:reveal — IntersectionObserver</h3>
+      <div class="demo">
+        <p class="hint">Fires each time the element enters the viewport. Scroll it out and back in to re-trigger.</p>
+        <div data-store="$count=0">
+          <span data-init on:reveal="$count++"
+            data-effect="el.textContent = $count ? '👋 Revealed ' + $count + ' time(s)' : 'Scroll element out of view then back in…'">
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         @ FUNCTIONS
+    ===================================================== -->
+    <section id="at-functions">
+      <h2>@ Functions</h2>
+
+      <h3>@set — array element mutation with re-render</h3>
+      <div class="demo">
+        <p class="hint">
+          Direct assignment like <code>$colors[0] = 'x'</code> bypasses the Proxy and won't trigger a re-render.
+          Use <code>@set('key', index, value)</code> instead.
+        </p>
+        <div data-store="$colors=['red','green','blue']">
+          <output data-effect="el.value = $colors.join(', ')"></output>
+          <div class="row">
+            <button data-init on:click="@set('colors', 0, 'orange')">Set [0] = orange</button>
+            <button data-init on:click="@set('colors', 1, 'purple')">Set [1] = purple</button>
+            <button data-init on:click="@set('colors', 2, 'teal')">Set [2] = teal</button>
+            <button data-init on:click="$colors=['red','green','blue']">Reset</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         DOM SWAPS
+         These demos dispatch ssr:response directly
+         to simulate a server response without needing a server.
+    ===================================================== -->
+    <section id="swaps">
+      <h2>DOM Swaps</h2>
+
+      <h3>Fragment swap — replace by id</h3>
+      <div class="demo">
+        <p class="hint">A response element whose id matches an existing element in the DOM replaces it in-place.</p>
+        <div id="frag-a" style="padding:.5rem;background:var(--pico-code-background-color);border-radius:4px">
+          Original #frag-a content
+        </div>
+        <div class="row">
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Swapped at ' + new Date().toLocaleTimeString() + '</div>'}}))">
+            Swap
+          </button>
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Original #frag-a content</div>'}}))">
+            Restore
+          </button>
+        </div>
+      </div>
+
+      <h3>data-swap="append" and "prepend"</h3>
+      <div class="demo">
+        <p class="hint">data-swap="append:#selector" or "prepend:#selector" inserts without replacing.</p>
+        <ul id="swap-list"><li>Item 1 (original)</li></ul>
+        <div class="row">
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<li data-swap=\'append:#swap-list\'>Appended at ' + new Date().toLocaleTimeString() + '</li>'}}))">
+            Append item
+          </button>
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<li data-swap=\'prepend:#swap-list\'>Prepended at ' + new Date().toLocaleTimeString() + '</li>'}}))">
+            Prepend item
+          </button>
+        </div>
+      </div>
+
+      <h3>data-swap="none" — skip element</h3>
+      <div class="demo">
+        <p class="hint">Elements with data-swap="none" in the response are ignored entirely.</p>
+        <div id="skip-target"
+          style="padding:.5rem;background:var(--pico-code-background-color);border-radius:4px">
+          #skip-target — original
+        </div>
+        <div class="row">
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<div id=\'skip-target\' data-swap=\'none\'>This would replace (but is skipped)</div>'}}))">
+            Send with data-swap="none" (no change)
+          </button>
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<div id=\'skip-target\' style=\'padding:.5rem;border-radius:4px\'>#skip-target — swapped</div>'}}))">
+            Send without data-swap (replaces)
+          </button>
+        </div>
+      </div>
+
+      <!-- h3>ssr:init re-fires — swapped content is immediately reactive</h3>
+      <div class="demo">
+        <p class="hint">
+          ssr:init fires after every swap. Freshly inserted elements with data-store / data-effect
+          are automatically initialised.
+        </p>
+        <div id="reactive-swap-target">
+          <em>(swap in a reactive counter)</em>
+        </div>
+        <div class="row">
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<div id=\'reactive-swap-target\' data-store=\'$r=0\' style=\'display:flex;gap:.5rem;align-items:center\'><button on:click=\'$r++\'>+</button><strong data-effect=\'el.textContent=$r\'></strong> clicks</div>'}}))">
+            Swap in counter
+          </button>
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+            html:'<div id=\'reactive-swap-target\'><em>(swap in a reactive counter)</em></div>'}}))">
+            Reset
+          </button>
+        </div>
+      </div -->
+
+      <!-- h3>data-preserve — survive a full-page swap</h3>
+      <div class="demo">
+        <p class="hint">
+          Elements with data-preserve keep their DOM node and store state across full &lt;body&gt; swaps.
+          Increment the counter, then trigger the swap — the count survives.
+        </p>
+        <div id="preserved-counter" data-preserve data-store="$t=0"
+          style="padding:.5rem;border:2px solid var(--pico-primary);border-radius:4px;display:inline-flex;gap:.5rem;align-items:center;margin-bottom:.5rem">
+          Preserved ticks:
+          <strong data-effect="el.textContent = $t"></strong>
+          <button data-init on:click="$t++">Tick</button>
+        </div>
+        <br>
+        <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+          html:'<!DOCTYPE html><html><head><title>After full-page swap</title></head><body><main class=\'container\' style=\'padding:2rem\'><h1>Full &lt;body&gt; was swapped!</h1><div id=\'preserved-counter\'></div><p><a href=\'index.html\'>\u2190 back to examples</a></p></main><script src=\'./ssr.js\'><\/script></body></html>'}}))">
+          Trigger full-page swap (counter survives)
+        </button>
+      </div>
+    </section -->
+
+    <!-- =====================================================
+         NETWORK
+    ===================================================== -->
+    <section id="network">
+      <h2>Network — Links, Forms &amp; Fetch</h2>
+
+      <h3>Link interception</h3>
+      <div class="demo">
+        <p class="hint">
+          Same-origin link clicks are intercepted and fetched via ssr.js (triggering a full-page swap).
+          Use target="_top" to opt out.
+        </p>
+        <ul>
+          <li><a href="index.html">index.html — intercepted, fetched via ssr.js</a></li>
+          <li><a href="index.html" target="_top">index.html with target="_top" — browser navigates normally</a></li>
+          <li><a href="https://thorsenlabs.com">https://thorsenlabs.com — external, not intercepted</a></li>
+        </ul>
+      </div>
+
+      <h3>data-history on links</h3>
+      <div class="demo">
+        <p class="hint">Controls whether history.pushState, replaceState, or nothing is called.</p>
+        <ul>
+          <li><a href="index.html" data-history="pushState">data-history="pushState" (default) — adds to history</a></li>
+          <li><a href="index.html" data-history="replaceState">data-history="replaceState" — replaces current entry</a></li>
+          <li><a href="index.html" data-history="none">data-history="none" — fetch but no URL change</a></li>
+        </ul>
+      </div>
+
+      <h3>Form — GET / POST</h3>
+      <div class="demo" data-init="$method='POST'">
+        <p class="hint">Submitting this form POSTs and swaps the response.</p>
+        <form data-effect="el.method=$method">
+          <fieldset role="group">
+            <select data-bind="method"><option value="POST">POST</option><option value="GET">GET</option></select>
+            <button type="submit">Send</button>
+          </fieldset>
+        </form>
+        <output id="echo"></output>
+      </div>
+
+      <h3>@get / @post — programmatic fetch</h3>
+      <div class="demo">
+        <p class="hint">@get(url) and @post(url, options) trigger a fetch from any event handler. HTML responses update the DOM via ssr:response.</p>
+        <div data-store="$status='idle'">
+          <div class="row">
+            <button data-init on:click="$status='fetching…'; @get('index.html')">
+              @get('index.html')
+            </button>
+            <button data-init on:click="$status='fetching…'; @get('/does-not-exist-404')">
+              @get('/does-not-exist-404')
+            </button>
+          </div>
+          <output data-effect="el.value = $status"></output>
+        </div>
+      </div>
+
+      <h3>ssr:fetch-error — retry on network failure</h3>
+      <div class="demo">
+        <p class="hint">
+          Fires when a fetch fails with a non-abort error.
+          Failed GETs retry up to 5 times with linear back-off (1 s, 2 s, … 5 s).
+        </p>
+        <div data-store="$errors=[]"
+          data-init="@listen(document, 'ssr:fetch-error', evt => { $errors = [...$errors, evt.detail.url + ' — ' + evt.detail.error.message] })">
+          <output class="log" data-effect="el.value = $errors.join('\n') || '(no errors yet — trigger one with the @get above)'"></output>
+        </div>
+      </div>
+
+      <h3>ssr:response — non-HTML / non-SSE responses</h3>
+      <div class="demo">
+        <p class="hint">
+          When a fetch returns a content type other than text/html or text/event-stream, ssr:response fires
+          so you can handle it yourself — e.g. parse application/json.
+        </p>
+        <div data-store="$resp='(no response yet)'"
+          data-init="@listen(document, 'ssr:response', async evt => {
+            const ct = evt.detail.response?.headers.get('content-type') || '';
+            if (ct.includes('json')) {
+              const j = await evt.detail.response.json();
+              $resp = JSON.stringify(j, null, 2)
+            } else {
+              $resp = 'content-type: ' + ct
+            }
+          })">
+          <output data-effect="el.value = $resp"></output>
+          <p><small>Trigger a @get or @post to an endpoint that returns JSON to see this event fire.</small></p>
+        </div>
+      </div>
+
+      <h3>ssr-headers — default request headers</h3>
+      <div class="demo">
+        <p class="hint">A &lt;meta name="ssr-headers"&gt; in &lt;head&gt; sends extra headers on every ssr.js fetch. Useful for CSRF tokens.</p>
+        <pre><code>&lt;!-- place in &lt;head&gt; --&gt;
+&lt;meta name="ssr-headers" content="'x-csrf-token': 'abc123', 'x-requested-with': 'XMLHttpRequest'"&gt;</code></pre>
+      </div>
+    </section>
+
   </main>
+  <div style="display:none;pointer-events:none">
+    <div data-swap="append:#echo">Response</div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/gh/bigskysoftware/idiomorph@main/dist/idiomorph.min.js"></script>
   <script src="./ssr.js"></script>
 </body>
-
 </html>

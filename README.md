@@ -7,11 +7,12 @@
            |__/
 ```
 
-`ssr.js` is an alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev), which provides many if the same features, but focuses on being plug&play, instead of needing to add a bunch of `x-` or `data-` attributes for the most common cases. Pairing ssr.js with [pico.css](https://picocss.com/) will make your html very clean and easy to work with.
+[ssr.js](https://htmlpreview.github.io/?https://github.com/jhthorsen/ssr.js/blob/main/index.html) is an alternative to [htmx](https://htmx.org) and [datastar](https://data-star.dev), which provides many if the same features, but focuses on being plug&play, instead of needing to add a bunch of `x-` or `data-` attributes for the most common cases. Pairing ssr.js with [pico.css](https://picocss.com/) will make your html very clean and easy to work with.
 
 This project is especially suitable for backend developers, that does not want to maintain a big full stack node.js framework, but still want to add some interactivity to their server rendered pages without writing a lot of JavaScript. Full stack and frontend developers can also benefit from the simplicity and hackability of ssr.js, making it suit their specific needs, without all the extra bloat.
 
 <ul>
+  <li><a href="https://htmlpreview.github.io/?https://github.com/jhthorsen/ssr.js/blob/main/index.html">Demo</a></li>
   <li><a href="#size-matter">Size matter</a></li>
   <li><a href="#attributes">Attributes</a></li>
   <li><a href="#at-functions---foo">At-functions - @foo()</a></li>
