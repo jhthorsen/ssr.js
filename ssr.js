@@ -1,7 +1,6 @@
-;(function ($w, $d, H, L) {
-  const data_sel = '[data-init], [data-bind], [data-effect], [data-store]'
-  const S = {}
-  const has = Object.hasOwn
+;(function ($w, $d, H, I, L) {
+  const SEL = '[data-init],[data-bind],[data-effect],[data-store]'
+  const STORES = {}
 
   /**
    * Monkey-patches history.pushState and history.replaceState so that `L`
@@ -9,8 +8,8 @@
    * including third-party libraries.
    */
   ;['pushState', 'replaceState'].forEach(m => {
-    const orig = H[m].bind(H)
-    H[m] = (state, title, url) => { orig(state, title, url); url && (L = new URL(url, L.href)) }
+    const o = H[m].bind(H)
+    H[m] = (s, t, u) => { o(s, t, u); u && (L = new URL(u, L.href)) }
   })
 
   /**
@@ -38,10 +37,8 @@
    * @type {IntersectionObserver}
    */
   const obs = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      const $n = entry.target
-      if (!entry.isIntersecting) continue
-      if ($n.getAttribute('on:reveal')) dispatch($n, 'reveal')
+    for (const {isIntersecting: r, target: $n} of entries) {
+      if (r && $n.getAttribute('on:reveal')) dispatch($n, 'reveal')
     }
   })
 
@@ -93,7 +90,7 @@
   function destroy($n) {
     if ($n.dataset.preserve !== undefined) return
     obs.unobserve($n)
-    $($n, data_sel, destroy)
+    $($n, SEL, destroy)
     for (const k in $n._C ?? {}) for (const c of $n._C[k]) c()
     for (const k in $n._T ?? {}) clearTimeout($n._T[k])
     ;['_C', '_S', '_T'].forEach(k => delete $n[k])
@@ -125,7 +122,11 @@
     try {
       const r = await $w.fetch(u, {...o, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
-      if (ct == 'text/event-stream') {
+      if (ct.startsWith('text/html')) {
+        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {html: await r.text(), response: r, url}})
+      } else if (ct.match(/\/json\b/)) {
+        dispatch($n, 'ssr:sse-message', {bubbles: true, detail: {data: await r.json(), response: r, url}})
+      } else if (ct == 'text/event-stream') {
         const decoder = new TextDecoder('utf-8')
         const reader = r.body.getReader()
         let buf = '', detail = {}
@@ -142,24 +143,18 @@
               detail[k] += v
             } else {
               detail.url = url
-              dispatch($d, 'ssr:sse-' + detail.event, {detail})
+              dispatch($n, 'ssr:sse-' + detail.event, {detail})
               detail = {}
             }
             buf = buf.slice(i + 1)
           }
         }
       } else {
-        const html = ct.startsWith('text/html') && await r.text()
-        dispatch($n, 'ssr:response', {bubbles: true, detail: {html, response: r, url}})
+        dispatch($n, `ssr:${ct.split(';', 1)[0].replace(/\//g, 'g')}`, {bubbles: true, detail: {response: r, url}})
       }
       return r
     } catch (error) {
-      if (error.name != 'AbortError') {
-        dispatch($n, 'ssr:fetch-error', {bubbles: true, detail: {options: o, url, error}})
-      }
-      if (!o.method || o.method == 'GET') {
-        setTimeout(() => $n.parentNode && fetch($n, url, o), 3000)
-      }
+      if (error.name != 'AbortError') dispatch($n, 'ssr:sse-error', {bubbles: true, detail: {error, options: o, url}})
       return null
     }
   }
@@ -214,10 +209,10 @@
   function swapElements($p) {
     $($p, '[data-swap]', ($c) => {
       if ($c.dataset.swap == 'none') return
-      const swap = $c.dataset.swap.split(':', 2)
-      const $o = $($d, swap[1])
-      if (swap[0] == 'morph' || swap[0] == 'replaceWith') destroy($o)
-      swap[0] == 'morph' ? Idiomorph.morph($o, $c) : $o[swap[0]]($c)
+      const s = $c.dataset.swap.split(':', 2)
+      const $o = $($d, s[1])
+      if (s[0] == 'morph' || s[0] == 'replaceWith') destroy($o)
+      I && s[0] == 'morph' ? I.morph($o, $c) : $o[s[0]]($c)
     })
   }
 
@@ -246,14 +241,13 @@
    * @returns {FormData|URLSearchParams}
    */
   function toParams(i, o = new FormData()) {
-    for (const k in i ?? {}) {
-      if (!k.startsWith('_')) {
-        const v = typeof i[k].values == 'function' ? [...i[k].values()] : i[k]
-        o.append(k, JSON.stringify(v).replace(/^"|"$/g, ''))
-      }
-    }
+    for (const k in i ?? {}) o.append(k, JSON.stringify(i[k]).replace(/^"|"$/g, ''))
     return o
   }
+
+  listen($w, $w, 'ssr:sse-error', ({detail: {options: o, url}, defaultPrevented: d, target}) => {
+    if (!d && o.method == 'GET') setTimeout(() => target.parentNode && fetch(target, url, o), 3000)
+  })
 
   /**
    * Listens for the 'ssr:init' event on the document element and
@@ -264,8 +258,8 @@
    * each element, including creating stores, running initial code,
    * setting up event listeners, and handling two-way bindings.
    */
-  listen($w, $d, 'ssr:init', (evt) => {
-    $(evt.target, data_sel, ($n) => {
+  listen($w, $d, 'ssr:init', ({target: $d}) => {
+    $($d, SEL, ($n) => {
       if ($n._S) return
 
       // Create a store
@@ -284,7 +278,7 @@
           d.add(k)
           d._r ??= $w.requestAnimationFrame(() => {
             dispatch($n, 'ssr:render')
-            $($n, data_sel, ($c) => dispatch($c, 'ssr:render'))
+            $($n, SEL, ($c) => dispatch($c, 'ssr:render'))
             d.clear()
             d.r = true
             delete d._r
@@ -302,10 +296,10 @@
          * @returns {boolean}
          */
         const u = (kv) => kv.some((k) => d.has(k))
-        $n._S = new Proxy(S[$n.id] ?? {}, {
+        $n._S = new Proxy(STORES[$n.id] ?? {}, {
           get: (o, k) => k == '_D' ? d : k == '_U' ? u : o[k],
           set(o, k, v) {
-            if (d.r && !has(o, k)) throw `${k} is not defined`
+            if (d.r && !Object.hasOwn(o, k)) throw `${k} is not defined`
             if (!d.r || o[k] !== v) {
               o[k] = v
               d.render(k)
@@ -314,7 +308,7 @@
           },
         })
 
-        if ($n.id) S[$n.id] = $n._S
+        if ($n.id) STORES[$n.id] = $n._S
         // Run initial store code, allowing for pre-population of the
         // store with data before any effects or event listeners run.
         // This is useful for setting up initial state or fetching data
@@ -336,7 +330,7 @@
 
       // Run initial code
       if ($n.dataset.init) {
-        if ($n.id) S[$n.id] = $n._S
+        if ($n.id) STORES[$n.id] = $n._S
         delete $n._S._D.r
         fn($n, $n.dataset.init)()
       }
@@ -386,9 +380,9 @@
   })
 
   /**
-   * Listens for the 'ssr:response' event on the document element,
+   * Listens for the 'ssr:sse-patch-elements' event on the window element,
    * parses the text as html and updates the DOM.
-   * When the 'ssr:response' event is triggered, it checks if
+   * When the 'ssr:sse-patch-elements' event is triggered, it checks if
    * the provided HTML data contains a `<body>` tag. If it does, it
    * replaces the entire body content with the new content while
    * preserving elements marked with `data-preserve`. If it doesn't
@@ -397,11 +391,12 @@
    * and style elements and `data-swap` attributes to determine how to
    * swap elements in the DOM.
    */
-  listen($w, $d, 'ssr:response', ({detail}) => {
-    if (!detail.html) return
-    const url = detail.url?.toString() ?? ''
-    if (detail.html.lastIndexOf('<body', 4096) !== -1) {
-      const $p = new DOMParser().parseFromString(detail.html, 'text/html')
+  listen($w, $w, 'ssr:sse-patch-elements', ({detail: {html, url}}) => {
+    if (!I) I = $w.Idiomorph
+    if (!html) return
+    url = url?.toString() ?? ''
+    if (html.lastIndexOf('<body', 4096) !== -1) {
+      const $p = new DOMParser().parseFromString(html, 'text/html')
       let $c
       $($d, '[data-owner]', ($c) => $c.remove())
       destroy($d.body)
@@ -411,7 +406,7 @@
       if ($($p, '[data-swap]')) swapElements($p)
       else if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
     } else {
-      const $p = $d.createRange().createContextualFragment(detail.html)
+      const $p = $d.createRange().createContextualFragment(html)
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
       scriptAndStyle($p, url)
       $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
@@ -421,8 +416,7 @@
         const $o = $c.id && $($d, `#${$c.id}`)
         if ($o) {
           destroy($o)
-          Idiomorph ? Idiomorph.morph($o, $c) : $o.replaceWith($c)
-          setTimeout(() => dispatch($o, 'ssr:sse-patched'), 0)
+          I ? I.morph($o, $c) : $o.replaceWith($c)
         } else {
           console.warn("Can't swap unknown element", $c, $p)
         }
@@ -433,17 +427,13 @@
   })
 
   /**
-   * Listens for click events on the document body and handles navigation
+   * Listens for click events on the document and handles navigation
    * for links, preventing default browser navigation for same-origin
    * links and fetching the new page content instead.
    */
-  listen($w, $d.body, 'click', (evt) => {
-    if (evt.target?.closest('button, input, select, textarea')) return
-
-    const $n = evt.target?.closest('[href]')
-    if (!$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
-    if ($n.target == 'preventDefault') evt.preventDefault()
-    if (evt.defaultPrevented) return
+  listen($w, $d, 'click', ({defaultPrevented: x, preventDefault: p, target: $n}) => {
+    $n = $n?.closest('[href]')
+    if (x || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
 
     const url = new URL($n.href || $n.getAttribute('href'), L.href)
     const l = location
@@ -454,22 +444,18 @@
     if (m != 'none' && (l.pathname !== url.pathname || l.search !== url.search))
       H[m]({}, null, url.pathname + url.search)
 
-    evt.preventDefault()
+    p()
     fetch($d.body, url.pathname + url.search, {})
   })
 
   /**
-   * Listens for submit events on the document body and handles form
-   * submissions, including preventing default behavior, constructing
-   * fetch options based on the form attributes, and managing the busy
-   * state of the submitter element.
+   * Listens for submit events on the window and handles form submissions,
+   * including preventing default behavior, constructing fetch options based on
+   * the form attributes, and managing the busy state of the submitter element.
    */
-  listen($w, $d, 'submit', (evt) => {
-    const $n = evt.target?.closest('form')
-    if (!$n || $n.target == '_top') return
-    if (evt.target?.closest('input, select, textarea')) evt.preventDefault()
-    if ($n.target == 'preventDefault') evt.preventDefault()
-    if (evt.defaultPrevented) return
+  listen($w, $d, 'submit', ({defaultPrevented: x, preventDefault: p, submitter: $s, target: $n}) => {
+    $n = $n?.closest('form')
+    if (x || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
 
     const [u, b, r] = [new URL($n.action, L.href), new FormData($n), {method: $n.method}]
     const m = $n.dataset.history || 'pushState'
@@ -485,9 +471,8 @@
       H[m]({}, null, u.toString())
     }
 
-    const $s = evt.submitter
     if ($s) $s.ariaBusy = 'true'
-    evt.preventDefault()
+    p()
     fetch($d.body, u.toString(), r).finally(() => {
       $n.ariaBusy = 'false'
       if ($s) $s.ariaBusy = 'false'
@@ -508,4 +493,4 @@
   // to initialize the application.
   if (!$d.body.dataset.store) $d.body.dataset.store = '$root=true'
   dispatch($d, 'ssr:init')
-})(window, document, history, location)
+})(window, document, history, window.Idiomorph, location)

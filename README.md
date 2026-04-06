@@ -14,8 +14,8 @@ This project is especially suitable for backend developers, that does not want t
 <ul>
   <li><a href="https://htmlpreview.github.io/?https://github.com/jhthorsen/ssr.js/blob/main/index.html">Demo</a></li>
   <li><a href="#size-matter">Size matter</a></li>
-  <li><a href="#attributes">Attributes</a></li>
-  <li><a href="#at-functions---foo">At-functions - @foo()</a></li>
+  <li><a href="#data-attributes">Data-attributes</a></li>
+  <li><a href="#at-functions">At-functions - @foo()</a></li>
   <li><a href="#events">Events</a></li>
   <li><a href="#server-side-responses">Server side responses</a></li>
   <li><a href="#special-tags">Special tags</a></li>
@@ -31,17 +31,16 @@ Each commit messages should contain the latest size, but below is just to give a
 
 ```sh
 # ssr.js
-./dev.sh size
 $ sed -E s:.*// .*$::; s:^[ ]*/?\*.*::g; s:^[ ]*:: ssr.js
-     293    1356    9377
+     279    1344    9149
 $ gzip -ck9 -
-    3585
+    3543
 $ brotli -ckq 6 -
-    3392
+    3340
 $ uglifyjs -m properties,toplevel ssr.js
-    3165
+    3162
 $ uglifyjs -m properties,toplevel ssr.js
-    2990
+    2981
 
 # datastar and htmx
 $ curl -L https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles/datastar.js | wc -c
@@ -50,7 +49,16 @@ $ curl https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js | wc -c
    51076
 ```
 
-## Attributes
+## Data-attributes
+
+There are some special syntax and variables for the attribute below that can run JavaScript expressions:
+
+* `el` - The current DOM node.
+* `store` - A `Proxy` object which contains all the variables, but without the "$" prefix.
+* `evt` - The current `event`, inside `on:event` handlers.
+* `$foo` - Any variable prefixed with "$" will access a key inside the `store`.
+* `@foo()` - Any of the "@" functions listed below are available.
+* `$()` - DOM node selector utility. Will use querySelectorAll() if a callback is provided, otherwise querySelector().
 
 ### data-store
 
@@ -64,20 +72,11 @@ Ractive variables *must* be defined in either `data-store` or `data-init`.
 
 ### data-init
 
-`data-init` can be used to run any javascript expression when the element is inserted into the DOM the first time. All the `@x()` functions below are available, and you can also define reactive variables using the `$myVariable=...` syntax.
+`data-init` can be used to run any javascript expression when the element is inserted into the DOM the first time.
 
 ```html
 <div data-init="anyJavaScriptExpression()"/>
 <div data-init="$a=42;"/>
-```
-
-### on:event listeners
-
-Events can be listened to using `on:eventname` attributes. The expression inside quotes will be run on the event. All the `@x()` functions below are available, and you can also change any reactive variables.
-
-```html
-<!-- The data-init or data-store attribute is required for ssr.js to discover the element! -->
-<button data-init on:click="anyJavaScriptExpression(evt)">click me</button>
 ```
 
 ### data-bind
@@ -133,7 +132,7 @@ One of the main functionalities in ssr.js is to swap DOM nodes that are retrieve
 
 1. A complete document is identified by having a `<body>` tag in the response. If such a tag is seen, then the current `<title>` is replaced and the whole document is swapped out.
 2. In other cases, the main rule is to replace any existing element that has an `id` attribute matching the `id` attribute of any direct child node in the response.
-3. See also [Handling of script and style elements](#handling-of-script-and-style-elements)
+3. `<script>` and `<style>` tags are always moved into the document `<head>`. Their [`nonce`](#nonce) attribute is preserved if present, which is useful for Content Security Policy.
 
 Any element in the response containing a `data-swap` attribute will be handled before swapping other child elements, and the complete `<body>` will *not* be replaced, if an element with `data-swap` is found. The `data-swap` attribute follows these rules:
 
@@ -188,18 +187,22 @@ ssr.js:dataset.swap
 ssr.js:dataset.template
 ssr.js:dataset.type
 
-### data-init, data-effect and on:event syntax and variables
+### nonce
 
-There are some special syntax and variables in data-init, data-effect and on:event handlers:
+The `nonce` attribute is required for `script` and `style` tags to allow swapping in fragments. Example:
 
-* `el` - The current DOM node.
-* `store` - A `Proxy` object which contains all the variables, but without the "$" prefix.
-* `evt` - The current `event`, inside `on:event` handlers.
-* `$foo` - Any variable prefixed with "$" will access a key inside the `store`.
-* `@foo()` - Any of the "@" functions listed below are available.
-* `$()` - DOM node selector utility. Will use querySelectorAll() if a callback is provided, otherwise querySelector().
+```html
+<!-- initially loaded document -->
+<head>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'nonce-rAQLAX4qhdYZ'">
+</head>
 
-## At-functions - @foo()
+<!-- tags loaded later on (nonce preserved if set) -->
+<style nonce="rAQLAX4qhdYZ">...</style>
+<script nonce="rAQLAX4qhdYZ">...</script>
+```
+
+## At-functions
 
 ### @debounce
 
@@ -255,85 +258,87 @@ See [data-effect](#data-effect).
 
 ## Events
 
+### Any element event
+
+* `bubbles:false`
+
+Events can be listened to using `on:eventname` attributes, but for the `on:eventname` attribute to be discovered, you also need a `data-init` attribute, though it doesn't need to have a value. The `on:eventname` attribute value will be run when the event is triggered.
+
+```html
+<button data-init on:click="el.innerHTML = 'you clicked me'">click me</button>
+<button data-init on:mouseover="@debounce(alert($a), 500)">click me</button>
+<button data-init on:custom::event-name="evt.preventDefault();$a++">click me</button>
+```
+
 ### Any element event `reveal`
 
-The on:reveal event is triggered each time the element is visible in the viewport.
+* `bubbles:false`
 
-### Document event `click` and `submit`
+The `on:reveal` event is a custom event that uses `IntersectionObserver()` to see if the element is in the viewport or not.
+
+```html
+<div data-init on:reveal="console.log({reveal: el})">
+```
+
+### Any element event `click` and `submit`
+
+* `bubbles:true`
 
 Any `click` or `submit` event that bubles up to the document will trigger a `window.fetch()` request. The following rules apply:
 
-1. Will not trigger if `target="_top"` or `target="preventDefult"`.
-2. Will not trigger if preventDefault is called.
-3. A form will not be submitted by pressing enter in an input field.
+1. Will not trigger if `target="_self"` or another target starting with underscore.
+2. Will not trigger if `evt.preventDefault()` is called before reaching the `document`.
 4. The location bar will be updated to the URL of the clicked link or form with `action="get"`.
+
+### Any element event `ssr:render`
+
+* `bubbles:false`
+
+TBD: Not sure if this should be public.
 
 ### Document event `ssr:init`
 
-The `ssr:init` event is triggered on initial load and after every `ssr:response` update. It will look for elements with `data-init`, `data-bind`, `data-effect`, or `data-store` attributes and initialize them.
+* `bubbles:false`
 
-Already initialized elements will be skipped.
-
-### Document event `ssr:fetch-error`
-
-The `ssr:fetch-error` event is triggered when `window.fetch()` fails. The callback will receive the following event detail:
-
-```javascript
-{
-    options, // The options passed to fetch()
-    url,     // The URL, as string, passed to fetch()
-    error,   // The fetch error
-}
-```
-
-### Document event `ssr:response`
-
-The `ssr:response` event is triggered when `window.fetch()` returns a response with a content type other than `text/html` or `text/event-stream`. This allows you to handle responses such as `application/json` in your own code. The callback receives the following event detail. See [application/json](#application-json) for example.
-
-The event callback receives the following event detail:
-
-```javascript
-{
-    html,     // The response text, if the content-type is "text/html"
-    response, // The Response object from fetch()
-    url,      // The URL, as string, passed to fetch()
-}
-```
-
-### Document body event `click`
-
-Clicking on relative links will trigger a `window.fetch()` request which again triggers `ssr:response`. The exception is if the link has `target="_top"` or an `on:click` handler.
-
-```html
-<a href="/foo">load with fetch()</a>
-<a href="/foo" target="_top">take over</a>
-<a href="/foo" data-init on:click="...">ignored</a>
-```
-
-### Window event `popstate`
-
-Will trigger a `window.fetch()` request and triggers `ssr:response`.
+TBD: Not sure if this should be public.
 
 ## Server side responses
 
-### Handling of script and style elements
+The following rules are applied to responses from [`@get()` or `@post()`](#get-and-post) requests. This also includes any `fetch()` request triggered by `click` or `submit`.
 
-`<script>` and `<style>` tags from `window.fetch()` responses are always moved into the document `<head>`. Their `nonce` attribute is preserved if present, which is useful for Content Security Policy.
+### text/html
 
-```html
-<!-- initially loaded document -->
-<head>
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'nonce-RandomString'">
-</head>
+* `bubbles:true`
 
-<!-- tags loaded later on (nonce preserved if set) -->
-<style nonce="RandomString">...</style>
-<script nonce="RandomString">...</script>
+When `text/html` is received, the `ssr:sse-patch-elements` event is dispatched on the element that initiated the request. The event callback receives the following `evt.detail`:
+
+```javascript
+{
+    html: "...", // The response text
+    response,    // The response object from fetch()
+    url: "...",  // The request URL
+}
+```
+
+The default handler (attached to `window`) will patch the current DOM after parsing `evt.detail.html`. See [data-swap](#data-swap) for more details.
+
+### application/json or text/json
+
+* `bubbles:true`
+
+When `application/json` or `text/json` is received, the `ssr:sse-message` event is dispatched on the element that triggered the request. The event callback receives the following `evt.detail`:
+
+```javascript
+{
+    data: {...}, // The response json document
+    response,    // The response object from fetch()
+    url,         // The request URL, as string, passed to fetch()
+}
 ```
 
 ### text/event-stream
 
-`text/event-stream` responses like the one below are handled. `data` can span multiple lines.
+When `text/event-stream` is received, the `ssr.js` will continue to stream events from the backend, and reconnect when the connection is dropped.
 
 ```
 <!-- will replace a node in the document (matched by id) -->
@@ -358,24 +363,43 @@ data: <div data-swap="morph:#some_id"></div>
 <!-- will skip swapping this element -->
 event: patch-elements
 data: <div data-swap="none"></div>
+
+<!-- will emit the `ssr:sse-message` event -->
+event: message
+data: [1,2,3]
+
+<!-- will emit a custom event `ssr:sse-custom-event` -->
+event: custom-event
+data: Any data
 ```
 
-### text/html
+### Any element event `ssr:type-subtype`
 
-`text/html` responses will trigger the same logic as for `text/event-stream`.
+* `bubbles:true`
 
-### application/json
-
-Use the `ssr:response` event to handle JSON responses and patch client-side variables:
+Any other responses from `window.fetch()` will trigger an event that consists for the content type, where `/` is replaced by `-`, ex `text-plain` or `text-javascript`, and is triggered on the element that called [`@get()` or `@post()`](#get-and-post). Example handling:
 
 ```javascript
-document.addEventListener('ssr:response', async ({detail}) => {
-  const ct = detail.response.headers.get('content-type') ?? ''
-  if (!ct.startsWith('application/json')) return
-  const data = await detail.response.json()
-  // patch your store here
+document.addEventListener('ssr:text-plain', async ({detail}) => {
+  alert(await detail.respons.text())
 })
 ```
+
+### Errors during `fetch`
+
+* `bubbles:true`
+
+When an `fetch()` error occurs, the `ssr:sse-error` event is dispatched on the element that triggered the request. The event callback receives the following `evt.detail`:
+
+```javascript
+{
+    options: {...}, // The options passed to @get() or @post()
+    error,          // The fetch() error
+    url: "...",     // The request URL, passed to @get() or @post()
+}
+```
+
+The default handler (attached to `window`) will retry GET requests, unless `evt.preventDefault()` was called.
 
 ## Special tags
 
@@ -385,7 +409,7 @@ A meta tag can be defined in `head` to send default headers. Note that no specia
 
 ```html
 <head>
-  <meta name="ssr-headers" content="'x-nonce':'RandomString'">
+  <meta name="ssr-headers" content="'x-nonce':'rAQLAX4qhdYZ'">
 </head>
 ```
 

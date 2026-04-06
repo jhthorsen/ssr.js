@@ -314,7 +314,7 @@
 
     <!-- =====================================================
          DOM SWAPS
-         These demos dispatch ssr:response directly
+         These demos dispatch ssr:sse-patch-elements directly
          to simulate a server response without needing a server.
     ===================================================== -->
     <section id="swaps">
@@ -327,14 +327,8 @@
           Original #frag-a content
         </div>
         <div class="row">
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
-            html:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Swapped at ' + new Date().toLocaleTimeString() + '</div>'}}))">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Swapped at ' + new Date().toLocaleTimeString() + '</div>'}})">
             Swap
-          </button>
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
-            html:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Original #frag-a content</div>'}}))">
-            Restore
-          </button>
         </div>
       </div>
 
@@ -343,12 +337,10 @@
         <p class="hint">data-swap="append:#selector" or "prepend:#selector" inserts without replacing.</p>
         <ul id="swap-list"><li>Item 1 (original)</li></ul>
         <div class="row">
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
-            html:'<li data-swap=\'append:#swap-list\'>Appended at ' + new Date().toLocaleTimeString() + '</li>'}}))">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<li data-swap=\'append:#swap-list\'>Appended at ' + new Date().toLocaleTimeString() + '</li>'}})">
             Append item
           </button>
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
-            html:'<li data-swap=\'prepend:#swap-list\'>Prepended at ' + new Date().toLocaleTimeString() + '</li>'}}))">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<li data-swap=\'prepend:#swap-list\'>Prepended at ' + new Date().toLocaleTimeString() + '</li>'}})">
             Prepend item
           </button>
         </div>
@@ -362,12 +354,10 @@
           #skip-target — original
         </div>
         <div class="row">
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
-            html:'<div id=\'skip-target\' data-swap=\'none\'>This would replace (but is skipped)</div>'}}))">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<div id=\'skip-target\' data-swap=\'none\'>This would replace (but is skipped)</div>'}})">
             Send with data-swap="none" (no change)
           </button>
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
-            html:'<div id=\'skip-target\' style=\'padding:.5rem;border-radius:4px\'>#skip-target — swapped</div>'}}))">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<div id=\'skip-target\' style=\'padding:.5rem;border-radius:4px\'>#skip-target — swapped</div>'}})">
             Send without data-swap (replaces)
           </button>
         </div>
@@ -383,11 +373,11 @@
           <em>(swap in a reactive counter)</em>
         </div>
         <div class="row">
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:sse-patch-elements', {detail:{url:'',
             html:'<div id=\'reactive-swap-target\' data-store=\'$r=0\' style=\'display:flex;gap:.5rem;align-items:center\'><button on:click=\'$r++\'>+</button><strong data-effect=\'el.textContent=$r\'></strong> clicks</div>'}}))">
             Swap in counter
           </button>
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:sse-patch-elements', {detail:{url:'',
             html:'<div id=\'reactive-swap-target\'><em>(swap in a reactive counter)</em></div>'}}))">
             Reset
           </button>
@@ -407,7 +397,7 @@
           <button data-init on:click="$t++">Tick</button>
         </div>
         <br>
-        <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:response', {detail:{url:'',
+        <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:sse-patch-elements', {detail:{url:'',
           html:'<!DOCTYPE html><html><head><title>After full-page swap</title></head><body><main class=\'container\' style=\'padding:2rem\'><h1>Full &lt;body&gt; was swapped!</h1><div id=\'preserved-counter\'></div><p><a href=\'index.html\'>\u2190 back to examples</a></p></main><script src=\'./ssr.js\'><\/script></body></html>'}}))">
           Trigger full-page swap (counter survives)
         </button>
@@ -457,13 +447,13 @@
 
       <h3>@get / @post — programmatic fetch</h3>
       <div class="demo">
-        <p class="hint">@get(url) and @post(url, options) trigger a fetch from any event handler. HTML responses update the DOM via ssr:response.</p>
+        <p class="hint">@get(url) and @post(url, options) trigger a fetch from any event handler. HTML responses update the DOM via ssr:sse-patch-elements.</p>
         <div data-store="$status='idle'">
           <div class="row">
             <button data-init on:click="$status='fetching…'; @get('index.html')">
               @get('index.html')
             </button>
-            <button data-init on:click="$status='fetching…'; @get('/does-not-exist-404')">
+            <button data-init on:click="$status='fetching…'; @get('/404.html')">
               @get('/does-not-exist-404')
             </button>
           </div>
@@ -471,26 +461,14 @@
         </div>
       </div>
 
-      <h3>ssr:fetch-error — retry on network failure</h3>
+      <h3>ssr:sse-patch-elements — non-HTML / non-SSE responses</h3>
       <div class="demo">
         <p class="hint">
-          Fires when a fetch fails with a non-abort error.
-          Failed GETs retry up to 5 times with linear back-off (1 s, 2 s, … 5 s).
-        </p>
-        <div data-store="$errors=[]"
-          data-init="@listen(document, 'ssr:fetch-error', evt => { $errors = [...$errors, evt.detail.url + ' — ' + evt.detail.error.message] })">
-          <output class="log" data-effect="el.value = $errors.join('\n') || '(no errors yet — trigger one with the @get above)'"></output>
-        </div>
-      </div>
-
-      <h3>ssr:response — non-HTML / non-SSE responses</h3>
-      <div class="demo">
-        <p class="hint">
-          When a fetch returns a content type other than text/html or text/event-stream, ssr:response fires
+          When a fetch returns a content type other than text/html or text/event-stream, ssr:sse-patch-elements fires
           so you can handle it yourself — e.g. parse application/json.
         </p>
         <div data-store="$resp='(no response yet)'"
-          data-init="@listen(document, 'ssr:response', async evt => {
+          data-init="@listen(document, 'ssr:sse-patch-elements', async evt => {
             const ct = evt.detail.response?.headers.get('content-type') || '';
             if (ct.includes('json')) {
               const j = await evt.detail.response.json();
