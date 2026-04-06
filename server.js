@@ -1,5 +1,6 @@
 // Usage: deno task start
-Deno.serve({port: Deno.env.get('PORT') || 3000}, async (req) => {
+const port = Deno.env.get('PORT') || 3000
+Deno.serve({port}, async (req) => {
   try {
     const path = new URL(req.url).pathname.match(/^\/(\w+\.\w+)$/)
     const body = await Deno.readFile(path ? path[1] : 'index.html')
@@ -10,4 +11,4 @@ Deno.serve({port: Deno.env.get('PORT') || 3000}, async (req) => {
   }
 })
 
-console.log('Listening on http://localhost:8000')
+console.log(`Listening on http://localhost:${port}`)

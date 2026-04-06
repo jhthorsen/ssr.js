@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ssr.js benchmark</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box }
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; background: #f5f5f5; color: #222 }
+    header { background: #1a1a2e; color: #fff; padding: .75rem 1rem; display: flex; align-items: center; gap: 1rem }
+    header h1 { margin: 0; font-size: 1rem; white-space: nowrap }
+    .controls { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; flex: 1 }
+    .controls label { color: #ccc; font-size: .85rem }
+    .controls input[type=number] { width: 6rem; padding: .25rem .4rem; border-radius: 4px; border: 1px solid #555; background: #2a2a3e; color: #fff }
+    .controls select { padding: .25rem .4rem; border-radius: 4px; border: 1px solid #555; background: #2a2a3e; color: #fff }
+    button { padding: .3rem .8rem; border-radius: 4px; border: none; cursor: pointer; font-size: .85rem }
+    button.primary { background: #4f8ef7; color: #fff }
+    button.danger  { background: #e05; color: #fff }
+    button.secondary { background: #444; color: #fff }
+
+    main { display: grid; grid-template-columns: 380px 1fr; height: calc(100vh - 42px) }
+
+    /* ---- left panel ---- */
+    aside { background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; overflow: hidden }
+    .suite-list { overflow-y: auto; flex: 1; padding: .5rem }
+    .suite { border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: .5rem }
+    .suite-header { display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem; background: #fafafa; border-bottom: 1px solid #eee; border-radius: 6px 6px 0 0 }
+    .suite-header h3 { margin: 0; font-size: .85rem; flex: 1 }
+    .suite-header label { font-size: .8rem; color: #666; display: flex; align-items: center; gap: .3rem }
+    .cases { padding: .25rem .5rem }
+    .case { display: flex; align-items: center; gap: .4rem; padding: .2rem .25rem; border-radius: 4px; font-size: .82rem }
+    .case:hover { background: #f0f4ff }
+    .case label { flex: 1; cursor: pointer }
+    .case .bar-wrap { width: 80px; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; flex-shrink: 0 }
+    .case .bar { height: 100%; background: #4f8ef7; border-radius: 5px; width: 0; transition: width .3s }
+    .case .bar.fastest { background: #22c55e }
+    .case .bar.slowest { background: #ef4444 }
+    .case .time { width: 68px; text-align: right; font-family: monospace; font-size: .78rem; color: #555; flex-shrink: 0 }
+    .case .badge { font-size: .7rem; padding: .1rem .35rem; border-radius: 3px; flex-shrink: 0 }
+    .badge.fastest { background: #d1fae5; color: #065f46 }
+    .badge.slowest  { background: #fee2e2; color: #991b1b }
+
+    /* ---- right panel ---- */
+    section.output { display: flex; flex-direction: column; overflow: hidden }
+    .output-toolbar { padding: .4rem .75rem; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: .5rem; align-items: center }
+    .output-toolbar span { font-size: .82rem; color: #666; flex: 1 }
+    #log { flex: 1; overflow-y: auto; padding: .5rem .75rem; font-family: monospace; font-size: .78rem; line-height: 1.6; background: #1a1a2e; color: #cdd3de }
+    #log .ok   { color: #22c55e }
+    #log .warn { color: #f59e0b }
+    #log .err  { color: #ef4444 }
+    #log .sep  { color: #444; user-select: none }
+    #log .head { color: #7dd3fc; font-weight: bold }
+    #log .dim  { color: #555 }
+
+    /* ---- dom target ---- */
+    #dom-target { display: none }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎩 ssr.js benchmark</h1>
+  <div class="controls">
+    <label>Elements <input type="number" id="el-count" value="2000" min="100" max="50000" step="100"></label>
+    <label>Runs <input type="number" id="run-count" value="100" min="1" max="10000" step="10"></label>
+    <label>Root
+      <select id="root-sel">
+        <option value="document">document</option>
+        <option value="body">document.body</option>
+        <option value="div">div#dom-target</option>
+      </select>
+    </label>
+  </div>
+  <button class="secondary" id="btn-build" title="Re-generate the DOM without running">Rebuild DOM</button>
+  <button class="primary"   id="btn-run">▶ Run selected</button>
+  <button class="danger"    id="btn-clear">Clear log</button>
+</header>
+
+<main>
+  <aside>
+    <div class="suite-list" id="suite-list"></div>
+  </aside>
+
+  <section class="output">
+    <div class="output-toolbar">
+      <span id="status">Ready.</span>
+    </div>
+    <div id="log"></div>
+  </section>
+</main>
+
+<!-- Hidden container for generated DOM -->
+<div id="dom-target"></div>
+
+<script src="ssr.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Logging
+// ─────────────────────────────────────────────────────────────────────────────
+const $log = document.getElementById('log')
+const $status = document.getElementById('status')
+
+function log(msg, cls = '') {
+  const el = document.createElement('div')
+  if (cls) el.className = cls
+  el.textContent = msg
+  $log.appendChild(el)
+  $log.scrollTop = $log.scrollHeight
+}
+function logHead(msg) { log(msg, 'head') }
+function logOk(msg)   { log(msg, 'ok') }
+function logWarn(msg) { log(msg, 'warn') }
+function logSep()     { log('─'.repeat(60), 'sep') }
+function logDim(msg)  { log(msg, 'dim') }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM generation
+// ─────────────────────────────────────────────────────────────────────────────
+const EVENTS   = ['click', 'keydown', 'mouseover', 'submit', 'input', 'change', 'focus', 'blur']
+const TAGS     = ['div', 'span', 'p', 'li', 'button', 'input', 'label', 'section', 'article']
+const DATA_ATTRS = ['data-init', 'data-bind', 'data-effect', 'data-store']
+
+// Distribution weights (out of 100): plain, data-init, data-bind, data-effect,
+// data-store, on:event, on:event+data-init, data-init+data-effect
+const DIST = [
+  { weight: 40, attrs: [] },
+  { weight: 12, attrs: ['data-init'] },
+  { weight: 10, attrs: ['data-bind'] },
+  { weight: 10, attrs: ['data-effect'] },
+  { weight:  5, attrs: ['data-store'] },
+  { weight:  8, attrs: ['on:event'] },
+  { weight: 10, attrs: ['data-init', 'on:event'] },
+  { weight:  5, attrs: ['data-init', 'data-effect'] },
+]
+
+// Expand weights into a lookup table
+const DIST_TABLE = []
+for (const d of DIST) for (let i = 0; i < d.weight; i++) DIST_TABLE.push(d.attrs)
+
+let generatedCount = 0
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)] }
+
+function buildDOM(n) {
+  const root = document.getElementById('dom-target')
+  root.innerHTML = ''
+  const frag = document.createDocumentFragment()
+  let parent = frag
+
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement(pick(TAGS))
+    const profile = DIST_TABLE[i % DIST_TABLE.length]
+
+    for (const a of profile) {
+      if (a === 'on:event') {
+        el.setAttribute('on:' + pick(EVENTS), `el.dataset.i=${i}`)
+      } else if (a === 'data-init') {
+        el.setAttribute('data-init', `el.dataset.i=${i}`)
+      } else if (a === 'data-bind') {
+        el.setAttribute('data-bind', `v${i % 20}`)
+      } else if (a === 'data-effect') {
+        el.setAttribute('data-effect', `el.textContent=$v${i % 20}`)
+      } else if (a === 'data-store') {
+        el.setAttribute('data-store', `$v${i % 20}=${i}`)
+      }
+    }
+
+    el.id = `bm-${i}`
+    // Build a shallow tree: every 10th element becomes the new parent
+    if (i % 10 === 0) {
+      const section = document.createElement('div')
+      frag.appendChild(section)
+      parent = section
+    }
+    parent.appendChild(el)
+  }
+
+  root.appendChild(frag)
+  generatedCount = n
+  logDim(`DOM rebuilt: ${n} elements in #dom-target`)
+  return root
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Benchmark runner
+// ─────────────────────────────────────────────────────────────────────────────
+function getRoot() {
+  const sel = document.getElementById('root-sel').value
+  if (sel === 'body') return document.body
+  if (sel === 'div')  return document.getElementById('dom-target')
+  return document
+}
+
+/**
+ * Run fn() `runs` times and return {mean, min, max, p50, p95} in ms.
+ */
+function bench(fn, runs) {
+  // Warm up
+  for (let i = 0; i < Math.min(5, runs); i++) fn()
+
+  const times = new Float64Array(runs)
+  for (let i = 0; i < runs; i++) {
+    const t0 = performance.now()
+    fn()
+    times[i] = performance.now() - t0
+  }
+  times.sort()
+  const sum = times.reduce((a, b) => a + b, 0)
+  return {
+    mean: sum / runs,
+    min:  times[0],
+    max:  times[runs - 1],
+    p50:  times[Math.floor(runs * 0.50)],
+    p95:  times[Math.floor(runs * 0.95)],
+  }
+}
+
+function fmt(ms) {
+  if (ms < 0.001) return (ms * 1000).toFixed(2) + ' µs'
+  if (ms < 1)     return ms.toFixed(3) + ' ms'
+  return ms.toFixed(2) + ' ms'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite / case definitions
+// ─────────────────────────────────────────────────────────────────────────────
+const suites = [
+  {
+    id: 'ssr-selectors',
+    name: 'ssr.js element discovery',
+    desc: 'How ssr.js finds elements to initialise (data-init, data-bind, data-effect, data-store)',
+    cases: [
+      {
+        id: 'qsa-combined',
+        name: '[data-init],[data-bind],[data-effect],[data-store]',
+        desc: 'Current ssr.js selector — one querySelectorAll call',
+        fn: (root) => root.querySelectorAll('[data-init],[data-bind],[data-effect],[data-store]'),
+      },
+      {
+        id: 'qsa-separate',
+        name: '4× separate querySelectorAll',
+        desc: 'One call per attribute, results merged',
+        fn: (root) => {
+          const r = []
+          for (const a of ['data-init', 'data-bind', 'data-effect', 'data-store'])
+            for (const el of root.querySelectorAll(`[${a}]`)) r.push(el)
+          return r
+        },
+      },
+      {
+        id: 'qsa-data-star',
+        name: 'TreeWalker: check dataset keys',
+        desc: 'Walk every element, keep those that have any matching dataset key',
+        fn: (root) => {
+          const keys = new Set(['init', 'bind', 'effect', 'store'])
+          const result = []
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+          let node
+          while ((node = walker.nextNode())) {
+            for (const k of Object.keys(node.dataset)) {
+              if (keys.has(k)) { result.push(node); break }
+            }
+          }
+          return result
+        },
+      },
+      {
+        id: 'qsa-has',
+        name: ':is([data-init],[data-bind],[data-effect],[data-store])',
+        desc: 'Using CSS :is() — same semantics, possibly different engine path',
+        fn: (root) => root.querySelectorAll(':is([data-init],[data-bind],[data-effect],[data-store])'),
+      },
+    ],
+  },
+  {
+    id: 'on-event-discovery',
+    name: 'on:event attribute discovery',
+    desc: "Strategies for finding elements with on:* attributes (CSS can't wildcard attribute names)",
+    cases: [
+      {
+        id: 'on-tree-walker',
+        name: 'TreeWalker: check all attributes',
+        desc: 'Walk every element, check each attribute name for "on:" prefix',
+        fn: (root) => {
+          const result = []
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+          let node
+          while ((node = walker.nextNode())) {
+            for (const attr of node.attributes) {
+              if (attr.name.startsWith('on:')) { result.push(node); break }
+            }
+          }
+          return result
+        },
+      },
+      {
+        id: 'on-qsa-each-event',
+        name: 'QSA per known event name',
+        desc: 'querySelectorAll for each of 8 common event names',
+        fn: (root) => {
+          const events = ['click', 'keydown', 'mouseover', 'submit', 'input', 'change', 'focus', 'blur']
+          const result = []
+          for (const e of events) for (const el of root.querySelectorAll(`[on\\:${e}]`)) result.push(el)
+          return result
+        },
+      },
+      {
+        id: 'on-combined-then-filter',
+        name: 'QSA data-init, then check on:* on results',
+        desc: 'ssr.js already finds data-init elements; scan only those for on:* — realistic workload',
+        fn: (root) => {
+          const result = []
+          for (const el of root.querySelectorAll('[data-init],[data-store]')) {
+            for (const attr of el.attributes) {
+              if (attr.name.startsWith('on:')) { result.push(el); break }
+            }
+          }
+          return result
+        },
+      },
+      {
+        id: 'on-xpath',
+        name: 'XPath: @*[starts-with(name(),"on:")]',
+        desc: 'XPath can wildcard attribute names — may be faster or slower depending on engine',
+        fn: (root) => {
+          const iter = document.evaluate(
+            './/*[@*[starts-with(name(),"on:")]]',
+            root === document ? document.documentElement : root,
+            null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null,
+          )
+          const result = []
+          let node
+          while ((node = iter.iterateNext())) result.push(node)
+          return result
+        },
+      },
+    ],
+  },
+  {
+    id: 'selector-strategies',
+    name: 'General selector strategies',
+    desc: 'Compare querySelectorAll, TreeWalker, and getElementsBy* across the full document',
+    cases: [
+      {
+        id: 'qsa-all-elements',
+        name: 'querySelectorAll("*") — count all elements',
+        fn: (root) => root.querySelectorAll('*').length,
+      },
+      {
+        id: 'tree-walker-all',
+        name: 'TreeWalker SHOW_ELEMENT — visit all',
+        fn: (root) => {
+          let n = 0
+          const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+          while (w.nextNode()) n++
+          return n
+        },
+      },
+      {
+        id: 'gebe-by-tag',
+        name: 'getElementsByTagName("*")',
+        fn: (root) => (root.getElementsByTagName ? root.getElementsByTagName('*').length : root.querySelectorAll('*').length),
+      },
+      {
+        id: 'qsa-id',
+        name: 'querySelectorAll("[id]") — all elements with id',
+        fn: (root) => root.querySelectorAll('[id]').length,
+      },
+      {
+        id: 'qsa-any-data',
+        name: 'querySelectorAll("[data-init],[data-bind],[data-effect],[data-store],[data-swap],[data-history],[data-preserve]")',
+        desc: 'All ssr.js data attributes in one shot',
+        fn: (root) => root.querySelectorAll('[data-init],[data-bind],[data-effect],[data-store],[data-swap],[data-history],[data-preserve]'),
+      },
+    ],
+  },
+  {
+    id: 'ssr-init',
+    name: 'ssr:init event performance',
+    desc: 'Measures how long ssr.js takes to process the ssr:init event across the generated DOM',
+    cases: [
+      {
+        id: 'ssr-init-dispatch',
+        name: 'dispatch ssr:init on document',
+        desc: 'Rebuilds the DOM then dispatches ssr:init — DOM rebuild ensures clean listener state each run',
+        fn: (_root, _runs) => {
+          const n = parseInt(document.getElementById('el-count').value) || 2000
+          return bench(() => {
+            buildDOM(n)
+            document.dispatchEvent(new CustomEvent('ssr:init'))
+          }, _runs)
+        },
+        isolatedBench: true,
+      },
+    ],
+  },
+  {
+    id: 'dom-size-impact',
+    name: 'DOM size impact',
+    desc: 'Run the primary ssr.js selector on differently-sized subtrees to visualise O(n) growth',
+    cases: [100, 500, 1000, 2500, 5000].map(n => ({
+      id: `size-${n}`,
+      name: `${n} elements — QSA combined`,
+      desc: `Build a fresh ${n}-element subtree and time the combined selector`,
+      fn: (_root, _runs) => {
+        // Build an isolated container
+        const container = document.createElement('div')
+        container.style.display = 'none'
+        document.body.appendChild(container)
+        const frag = document.createDocumentFragment()
+        for (let i = 0; i < n; i++) {
+          const el = document.createElement('div')
+          const profile = DIST_TABLE[i % DIST_TABLE.length]
+          for (const a of profile) {
+            if (a === 'on:event') el.setAttribute('on:' + pick(EVENTS), '')
+            else if (a !== '') el.setAttribute(a, '')
+          }
+          frag.appendChild(el)
+        }
+        container.appendChild(frag)
+        const result = bench(
+          () => container.querySelectorAll('[data-init],[data-bind],[data-effect],[data-store]'),
+          _runs,
+        )
+        document.body.removeChild(container)
+        return result
+      },
+      isolatedBench: true,
+    })),
+  },
+]
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build sidebar UI
+// ─────────────────────────────────────────────────────────────────────────────
+function buildUI() {
+  const list = document.getElementById('suite-list')
+  list.innerHTML = ''
+
+  for (const suite of suites) {
+    const suiteEl = document.createElement('div')
+    suiteEl.className = 'suite'
+    suiteEl.id = `suite-${suite.id}`
+
+    const header = document.createElement('div')
+    header.className = 'suite-header'
+    header.innerHTML = `
+      <h3>${suite.name}</h3>
+      <label title="Select all in suite">
+        <input type="checkbox" class="suite-check" data-suite="${suite.id}" checked>
+        all
+      </label>`
+    suiteEl.appendChild(header)
+
+    const casesEl = document.createElement('div')
+    casesEl.className = 'cases'
+
+    for (const c of suite.cases) {
+      const row = document.createElement('div')
+      row.className = 'case'
+      row.id = `case-${c.id}`
+      row.innerHTML = `
+        <input type="checkbox" class="case-check" data-case="${c.id}" checked>
+        <label title="${c.desc || ''}">${c.name}</label>
+        <div class="bar-wrap"><div class="bar" id="bar-${c.id}"></div></div>
+        <span class="time" id="time-${c.id}">—</span>
+        <span class="badge" id="badge-${c.id}"></span>`
+      casesEl.appendChild(row)
+    }
+    suiteEl.appendChild(casesEl)
+    list.appendChild(suiteEl)
+  }
+
+  // Suite checkbox toggles all case checkboxes inside
+  list.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('suite-check')) return
+    const id = e.target.dataset.suite
+    const suite = suites.find(s => s.id === id)
+    for (const c of suite.cases) {
+      const cb = document.querySelector(`.case-check[data-case="${c.id}"]`)
+      if (cb) cb.checked = e.target.checked
+    }
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run benchmarks
+// ─────────────────────────────────────────────────────────────────────────────
+async function runSelected() {
+  const runs   = parseInt(document.getElementById('run-count').value) || 100
+  const elCount = parseInt(document.getElementById('el-count').value) || 2000
+  const root   = getRoot()
+
+  // Collect selected cases
+  const selected = []
+  for (const suite of suites) {
+    for (const c of suite.cases) {
+      const cb = document.querySelector(`.case-check[data-case="${c.id}"]`)
+      if (cb?.checked) selected.push({suite, c})
+    }
+  }
+  if (!selected.length) { log('No cases selected.', 'warn'); return }
+
+  // Reset bars / badges
+  for (const {c} of selected) {
+    const bar   = document.getElementById(`bar-${c.id}`)
+    const time  = document.getElementById(`time-${c.id}`)
+    const badge = document.getElementById(`badge-${c.id}`)
+    if (bar)   { bar.style.width = '0'; bar.className = 'bar' }
+    if (time)  time.textContent = '…'
+    if (badge) { badge.textContent = ''; badge.className = 'badge' }
+  }
+
+  // Rebuild DOM if needed
+  if (generatedCount !== elCount) buildDOM(elCount)
+
+  document.getElementById('btn-run').disabled = true
+  $status.textContent = `Running ${selected.length} case(s) × ${runs} runs…`
+  logSep()
+  logHead(`Benchmark  ·  ${elCount} elements  ·  ${runs} runs  ·  ${new Date().toLocaleTimeString()}`)
+  logSep()
+
+  const results = {} // case id → stat object
+
+  for (const {suite, c} of selected) {
+    // Yield to browser between cases
+    await new Promise(r => setTimeout(r, 0))
+
+    let stat
+    try {
+      if (c.isolatedBench) {
+        // The fn itself builds its own container and returns stats
+        stat = c.fn(root, runs)
+      } else {
+        stat = bench(() => c.fn(root), runs)
+      }
+      results[c.id] = stat
+
+      const timeEl = document.getElementById(`time-${c.id}`)
+      if (timeEl) timeEl.textContent = fmt(stat.mean)
+
+      logOk(`${c.name}`)
+      logDim(`  mean=${fmt(stat.mean)}  p50=${fmt(stat.p50)}  p95=${fmt(stat.p95)}  min=${fmt(stat.min)}  max=${fmt(stat.max)}`)
+    } catch (err) {
+      log(`✗ ${c.name}: ${err.message}`, 'err')
+      logDim(`  ${err.stack?.split('\n')[1] ?? ''}`)
+    }
+  }
+
+  // Draw relative bars per suite
+  for (const suite of suites) {
+    const suiteResults = suite.cases
+      .filter(c => results[c.id])
+      .map(c => ({c, mean: results[c.id].mean}))
+    if (!suiteResults.length) continue
+
+    const max = Math.max(...suiteResults.map(r => r.mean))
+    const min = Math.min(...suiteResults.map(r => r.mean))
+
+    for (const {c, mean} of suiteResults) {
+      const bar   = document.getElementById(`bar-${c.id}`)
+      const badge = document.getElementById(`badge-${c.id}`)
+      if (bar)   { bar.style.width = (mean / max * 100) + '%'; bar.className = 'bar' + (mean === min ? ' fastest' : mean === max ? ' slowest' : '') }
+      if (badge && suiteResults.length > 1) {
+        if (mean === min) { badge.textContent = 'fastest'; badge.className = 'badge fastest' }
+        else if (mean === max) { badge.textContent = 'slowest'; badge.className = 'badge slowest' }
+      }
+    }
+  }
+
+  logSep()
+  $status.textContent = `Done — ${selected.length} case(s) completed.`
+  document.getElementById('btn-run').disabled = false
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+buildUI()
+buildDOM(parseInt(document.getElementById('el-count').value))
+
+document.getElementById('btn-run').addEventListener('click', runSelected)
+document.getElementById('btn-build').addEventListener('click', () => {
+  const n = parseInt(document.getElementById('el-count').value) || 2000
+  generatedCount = 0 // force rebuild
+  buildDOM(n)
+})
+document.getElementById('btn-clear').addEventListener('click', () => { $log.innerHTML = ''; $status.textContent = 'Log cleared.' })
+
+log('Welcome to the ssr.js benchmark page.', 'head')
+logDim(`Select cases on the left, adjust element count and run count, then click ▶ Run selected.`)
+logDim(`The "DOM size impact" suite rebuilds isolated subtrees of fixed sizes, ignoring the element-count setting.`)
+</script>
+</body>
+</html>
