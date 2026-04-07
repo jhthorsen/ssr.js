@@ -1,4 +1,6 @@
 ;(function ($w, $d, H, I, L) {
+  'use strict';
+
   const SEL = '[data-init],[data-bind],[data-effect],[data-store]'
   const STORES = {}
 
@@ -74,13 +76,15 @@
      * Sets a value in the store.
      * @param {Node} $n - Node.
      * @param {string} k - Key.
-     * @param {number|string} i - Index.
+     * @param {number|string|undefined} i - Index by integer for array or object key
      * @param {*} v - Value.
+     * @param {bool} Force numeric value (optional, default: false)
      */
-    set: ($n, k, i, v) => {
-      $n._S[k][i] = v
-      $n._S._D.render(k)
-    },
+    set: ($n, k, i, v, n) => {
+      if (n) v = +v // Force numeric
+      i == undefined ? $n._S[k] = v : $n._S[k][i] = v
+      $n._S._M.touch(k) // Make sure we also render on $n._S.foo[k][i] = v
+    }
   }
 
   /**
@@ -261,59 +265,35 @@
   listen($w, $d, 'ssr:init', ({target: $d}) => {
     $($d, SEL, ($n) => {
       if ($n._S) return
+      const ds = $n.dataset
 
-      // Create a store
-      if ($n.dataset.store) {
-        /**
-         * Store object with render and update utilities.
-         * @type {Set}
-         */
-        const d = new Set()
-        /**
-         * Dispatches a `ssr:render` event for the given key, batching
-         * multiple updates together using `requestAnimationFrame()`.
-         * @param {string} k - Key.
-         */
-        d.render = (k) => {
-          d.add(k)
-          d._r ??= $w.requestAnimationFrame(() => {
+      /**
+       * Creates a store wrapped inside a Proxy(), that allows for reactive
+       * updates and tracking of dependencies. Note that the reactiveness is
+       * not deep, so to be able to modify ex. arrays you need to use @set().
+       */
+      if (ds.store) {
+        const m = new Set()
+        m.touched = (ks) => ks.some(k => m.has(k))
+        m.touch = (k) => {
+          m.add(k)
+          m.l ??= $w.requestAnimationFrame(() => {
             dispatch($n, 'ssr:render')
             $($n, SEL, ($c) => dispatch($c, 'ssr:render'))
-            d.clear()
-            d.r = true
-            delete d._r
+            m.clear()
+            delete m.l
           })
         }
 
-        /**
-         * Creates a proxy for the store that allows for reactive updates
-         * and tracking of dependencies.
-         * Note that the reactiveness is not deep, so nested objects or
-         * arrays will not trigger updates when modified. To work around
-         * this, you can reassign the entire object or array to trigger
-         * an update.
-         * @param {Array} kv - Keys.
-         * @returns {boolean}
-         */
-        const u = (kv) => kv.some((k) => d.has(k))
-        $n._S = new Proxy(STORES[$n.id] ?? {}, {
-          get: (o, k) => k == '_D' ? d : k == '_U' ? u : o[k],
-          set(o, k, v) {
-            if (d.r && !Object.hasOwn(o, k)) throw `${k} is not defined`
-            if (!d.r || o[k] !== v) {
-              o[k] = v
-              d.render(k)
-            }
+        $n._S = new Proxy($n.id ? (STORES[$n.id] ??= {}) : {}, {
+          get: (d, k) => k == '_M' ? m : d[k],
+          set: (d, k, v) => {
+            if (k == '_M' || (m.ro && !Object.hasOwn(d, k))) return false;
+            if (!m.ro || d[k] !== v) { d[k] = v; m.touch(k) }
             return true
-          },
+          }
         })
-
-        if ($n.id) STORES[$n.id] = $n._S
-        // Run initial store code, allowing for pre-population of the
-        // store with data before any effects or event listeners run.
-        // This is useful for setting up initial state or fetching data
-        // when the store is created.
-        fn($n, $n.dataset.store)()
+        fn($n, ds.store)()
       }
 
       // Looks for a store on the parent element, making it possible to
@@ -326,14 +306,14 @@
         if (!$p || $p._S) $n._S = $p ? $p._S : {}
         $p = $p?.parentNode
       }
-      const s = $n._S
 
       // Run initial code
-      if ($n.dataset.init) {
-        if ($n.id) STORES[$n.id] = $n._S
-        delete $n._S._D.r
-        fn($n, $n.dataset.init)()
+      if (ds.init) {
+        $n._S._M.ro = false
+        fn($n, ds.init)()
       }
+
+      $n._S._M.ro = true
 
       // Listen for on:click, on:reveal and other events
       for (const a of $n.attributes) {
@@ -343,35 +323,34 @@
       }
 
       // Two way binding
-      if ($n.dataset.bind) {
-        const [, k, i] = $n.dataset.bind.match(/(\w+)\[(\d+)\]/) || $n.dataset.bind.match(/(\w+)/) || []
-        const isNum = $n.type == 'number' || $n.dataset.type == 'number'
-        const write = i == undefined ? (v) => (s[k] = isNum ? +v : v) : (v) => (s[k][i] = isNum ? +v : v)
-        const read = i == undefined ? () => s[k] : () => s[k][i]
+      if (ds.bind) {
+        const [, key, idx] = ds.bind.match(/(\w+)\[(\d+)\]/) || ds.bind.match(/(\w+)/) || []
+        const num = $n.type == 'number' || ds.type == 'number'
+        const read = idx == undefined ? () => $n._S[key] : () => $n._S[key][idx]
 
-        if ($n.type == 'checkbox' || $n.type == 'radio' || $n.tagName == 'SELECT') {
-          const byVal = $n.hasAttribute('value') || $n.tagName == 'SELECT'
-          listen($n, $n, 'change', () => { write(byVal ? $n.value : $n.checked); s._D.render(k) })
-          listen($n, $n, 'ssr:render', () => { $n.checked = byVal ? $n.value == read() : read() })
-          write(byVal ? $n.value : $n.checked)
+        if ($n.type == 'checkbox' || $n.type == 'radio') {
+          const byVal = $n.hasAttribute('value');
+          listen($n, $n, 'change', () => at.set($n, key, idx, byVal ? $n.value : $n.checked, num))
+          listen($n, $n, 'ssr:render', () => $n.checked = byVal ? $n.value == read() : read())
+          at.set($n, key, idx, byVal ? $n.value : $n.checked, num)
         } else {
-          listen($n, $n, 'input', () => { write($n.value); s._D.render(k) })
-          listen($n, $n, 'ssr:render', () => { $n.value = read() })
-          write($n.value)
+          listen($n, $n, $n.tagName == 'SELECT' ? 'change' : 'input', () => at.set($n, key, idx, $n.value, num))
+          listen($n, $n, 'ssr:render', () => $n.value = read())
+          at.set($n, key, idx, $n.value, num)
         }
       }
 
       // Run effects
-      if ($n.dataset.effect) {
+      if (ds.effect) {
         /**
          * Effect callback for rendering.
          * @type {Function}
          */
-        const cb = fn($n, $n.dataset.effect, (x) => {
-          const u = x.replaceAll(/@use\(/g, 'store._U(')
+        const cb = fn($n, ds.effect, (x) => {
+          const u = x.replaceAll(/@use\(/g, 'el._S._M.touched(')
           if (u !== x) return u
           const ks = Array.from(x.matchAll(/\$(\w+)\b\s*(?!=)/g), (m) => `'${m[1]}'`).join(',')
-          return `if(store._U([${ks}])){${x};}`
+          return `if(el._S._M.touched([${ks}])){${x};}`
         })
 
         listen($n, $n, 'ssr:render', cb)
