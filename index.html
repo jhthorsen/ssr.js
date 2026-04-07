@@ -436,9 +436,9 @@
       <h3>Form — GET / POST</h3>
       <div class="demo" data-init="$method='POST'">
         <p class="hint">Submitting this form POSTs and swaps the response.</p>
-        <form data-effect="el.method=$method">
+        <form data-effect="el.action=`${$method}.html`;el.method=$method">
           <fieldset role="group">
-            <select data-bind="method"><option value="POST">POST</option><option value="GET">GET</option></select>
+            <select data-bind="method"><option value="post">POST</option><option value="get">GET</option></select>
             <button type="submit">Send</button>
           </fieldset>
         </form>
@@ -491,9 +491,6 @@
     </section>
 
   </main>
-  <div style="display:none;pointer-events:none">
-    <div data-swap="append:#echo">Response</div>
-  </div>
   <script src="https://cdn.jsdelivr.net/gh/bigskysoftware/idiomorph@main/dist/idiomorph.min.js"></script>
   <script src="./ssr.js"></script>
 </body>

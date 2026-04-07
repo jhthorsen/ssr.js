@@ -1,6 +1,5 @@
 ;(function ($w, $d, H, I, L) {
   'use strict';
-
   const SEL = '[data-init],[data-bind],[data-effect],[data-store]'
   const STORES = {}
 
@@ -92,7 +91,7 @@
    * @param {Node} $n - DOM node to destroy.
    */
   function destroy($n) {
-    if ($n.dataset.preserve !== undefined) return
+    if ($n.dataset.preserve != undefined) return
     obs.unobserve($n)
     $($n, SEL, destroy)
     for (const k in $n._C ?? {}) for (const c of $n._C[k]) c()
@@ -288,7 +287,7 @@
         $n._S = new Proxy($n.id ? (STORES[$n.id] ??= {}) : {}, {
           get: (d, k) => k == '_M' ? m : d[k],
           set: (d, k, v) => {
-            if (k == '_M' || (m.ro && !Object.hasOwn(d, k))) return false;
+            if (k == '_M' || (m.ro && !Object.hasOwn(d, k))) return false
             if (!m.ro || d[k] !== v) { d[k] = v; m.touch(k) }
             return true
           }
@@ -329,7 +328,7 @@
         const read = idx == undefined ? () => $n._S[key] : () => $n._S[key][idx]
 
         if ($n.type == 'checkbox' || $n.type == 'radio') {
-          const byVal = $n.hasAttribute('value');
+          const byVal = $n.hasAttribute('value')
           listen($n, $n, 'change', () => at.set($n, key, idx, byVal ? $n.value : $n.checked, num))
           listen($n, $n, 'ssr:render', () => $n.checked = byVal ? $n.value == read() : read())
           at.set($n, key, idx, byVal ? $n.value : $n.checked, num)
@@ -374,7 +373,7 @@
     if (!I) I = $w.Idiomorph
     if (!html) return
     url = url?.toString() ?? ''
-    if (html.lastIndexOf('<body', 4096) !== -1) {
+    if (html.lastIndexOf('<body', 4096) != -1) {
       const $p = new DOMParser().parseFromString(html, 'text/html')
       let $c
       $($d, '[data-owner]', ($c) => $c.remove())
@@ -382,8 +381,9 @@
       scriptAndStyle($p, url)
       $($d, '[data-preserve]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
       if (($c = $($p, 'title'))) $($d, 'title', ($o) => $o.textContent = $c.textContent)
-      if ($($p, '[data-swap]')) swapElements($p)
-      else if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
+      if ($($p, '[data-swap]')) return swapElements($p)
+      if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
+      if (L.hash) $($d, L.hash, el => el.scrollIntoView({behavior: 'auto'}))
     } else {
       const $p = $d.createRange().createContextualFragment(html)
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
@@ -410,20 +410,18 @@
    * for links, preventing default browser navigation for same-origin
    * links and fetching the new page content instead.
    */
-  listen($w, $d, 'click', ({defaultPrevented: x, preventDefault: p, target: $n}) => {
-    $n = $n?.closest('[href]')
-    if (x || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
+  listen($w, $d, 'click', (evt) => {
+    const $n = evt.target?.closest('[href]')
+    if (evt.defaultPrevented || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
 
     const url = new URL($n.href || $n.getAttribute('href'), L.href)
-    const l = location
-    if (url.origin !== l.origin) return
-    if (url.hash && url.pathname === l.pathname && url.search === l.search) return
+    if (url.origin != L.origin) return // Not the same site
+    if (url.pathname == L.pathname && url.search == L.search && url.hash) return // link#anchor on same page
 
     const m = $n.dataset.history || 'pushState'
-    if (m != 'none' && (l.pathname !== url.pathname || l.search !== url.search))
-      H[m]({}, null, url.pathname + url.search)
+    if (m != 'none') H[m]({}, null, url.pathname + url.search + url.hash)
 
-    p()
+    evt.preventDefault()
     fetch($d.body, url.pathname + url.search, {})
   })
 
@@ -432,9 +430,9 @@
    * including preventing default behavior, constructing fetch options based on
    * the form attributes, and managing the busy state of the submitter element.
    */
-  listen($w, $d, 'submit', ({defaultPrevented: x, preventDefault: p, submitter: $s, target: $n}) => {
-    $n = $n?.closest('form')
-    if (x || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
+  listen($w, $d, 'submit', (evt) => {
+    const $n = evt.target?.closest('form')
+    if (evt.defaultPrevented || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
 
     const [u, b, r] = [new URL($n.action, L.href), new FormData($n), {method: $n.method}]
     const m = $n.dataset.history || 'pushState'
@@ -450,8 +448,9 @@
       H[m]({}, null, u.toString())
     }
 
+    const $s = evt.submitter
     if ($s) $s.ariaBusy = 'true'
-    p()
+    evt.preventDefault()
     fetch($d.body, u.toString(), r).finally(() => {
       $n.ariaBusy = 'false'
       if ($s) $s.ariaBusy = 'false'
@@ -463,8 +462,9 @@
    * location to update the page content accordingly.
    */
   listen($w, $w, 'popstate', () => {
-    if (L.pathname === location.pathname && L.search === location.search) return
+    const O = L
     L = location
+    if (O.pathname == L.pathname && O.search == L.search) return
     fetch($d.body, L.pathname + L.search, {})
   })
 
