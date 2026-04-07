@@ -302,43 +302,60 @@ TBD: Not sure if this should be public.
 
 TBD: Not sure if this should be public.
 
-## Server side responses
-
-The following rules are applied to responses from [`@get()` or `@post()`](#get-and-post) requests. This also includes any `fetch()` request triggered by `click` or `submit`.
-
-### text/html
+### Any element event `ssr:response`
 
 * `bubbles:true`
 
-When `text/html` is received, the `ssr:sse-patch-elements` event is dispatched on the element that initiated the request. The event callback receives the following `evt.detail`:
+When an `fetch()` gets a response that does not match the content types below, the `ssr:response` event is dispatched on the element that triggered the request.
+
+| content-type      | event                  |
+|-------------------|------------------------|
+| text/html         | ssr:sse-patch-elements |
+| application/json  | ssr:sse-message        |
+| text/event-stream | ssr:sse-any-event-name |
+
+The event callback receives the following `evt.detail`:
 
 ```javascript
 {
-    html: "...", // The response text
-    response,    // The response object from fetch()
-    url: "...",  // The request URL
+  response,   // The response object from fetch()
+  url: "...", // The request URL
 }
 ```
 
-The default handler (attached to `window`) will patch the current DOM after parsing `evt.detail.html`. See [data-swap](#data-swap) for more details.
-
-### application/json or text/json
+### Any element event `ssr:sse-patch-elements`
 
 * `bubbles:true`
 
-When `application/json` or `text/json` is received, the `ssr:sse-message` event is dispatched on the element that triggered the request. The event callback receives the following `evt.detail`:
+This event is dispatched when either either `text/html` is received or the `text/event-stream` response sees a `patch-elements` event. The default handler provided by ssr.js will patch the existing document. See [data-swap](#data-swap) for more details.
 
 ```javascript
-{
-    data: {...}, // The response json document
-    response,    // The response object from fetch()
-    url,         // The request URL, as string, passed to fetch()
-}
+// data and url are strings.
+// setting evt.detail.data = '' will prevent the default `ssr:sse-patch-elements` handler from running
+document.addEventListener('ssr:sse-patch-elements', ({detail: {data, url}}) => { ... })
 ```
 
-### text/event-stream
+### Any element event `ssr:sse-message`
 
-When `text/event-stream` is received, the `ssr.js` will continue to stream events from the backend, and reconnect when the connection is dropped.
+* `bubbles:true`
+
+This event is dispatched when either either `application/json` is received or the `text/event-stream` response sees a `message` event. There are no default handler provided by ssr.js for this event.
+
+```javascript
+// data and url are strings
+document.addEventListener('ssr:sse-message', ({detail: {data, url}}) => { ... })
+```
+
+### Any element event `ssr:sse-any-event-name`
+
+* `bubbles:true`
+
+ssr.js has builtin support for `text/event-stream` content-type, and will parse the events and dispatch them with the `ssr:sse-` prefix.
+
+```javascript
+// data and url are strings
+document.addEventListener('ssr:sse-message', ({detail: {data, url}}) => { ... })
+```
 
 ```
 <!-- will replace a node in the document (matched by id) -->
@@ -373,23 +390,11 @@ event: custom-event
 data: Any data
 ```
 
-### Any element event `ssr:type-subtype`
+### Any element event `ssr:error`
 
 * `bubbles:true`
 
-Any other responses from `window.fetch()` will trigger an event that consists for the content type, where `/` is replaced by `-`, ex `text-plain` or `text-javascript`, and is triggered on the element that called [`@get()` or `@post()`](#get-and-post). Example handling:
-
-```javascript
-document.addEventListener('ssr:text-plain', async ({detail}) => {
-  alert(await detail.respons.text())
-})
-```
-
-### Errors during `fetch`
-
-* `bubbles:true`
-
-When an `fetch()` error occurs, the `ssr:sse-error` event is dispatched on the element that triggered the request. The event callback receives the following `evt.detail`:
+When an `fetch()` error occurs, the `ssr:error` event is dispatched on the element that triggered the request. The event callback receives the following `evt.detail`:
 
 ```javascript
 {

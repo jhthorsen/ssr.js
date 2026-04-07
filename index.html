@@ -327,7 +327,7 @@
           Original #frag-a content
         </div>
         <div class="row">
-          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Swapped at ' + new Date().toLocaleTimeString() + '</div>'}})">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'',data:'<div id=\'frag-a\' style=\'padding:.5rem;border-radius:4px\'>Swapped at ' + new Date().toLocaleTimeString() + '</div>'}})">
             Swap
         </div>
       </div>
@@ -337,10 +337,10 @@
         <p class="hint">data-swap="append:#selector" or "prepend:#selector" inserts without replacing.</p>
         <ul id="swap-list"><li>Item 1 (original)</li></ul>
         <div class="row">
-          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<li data-swap=\'append:#swap-list\'>Appended at ' + new Date().toLocaleTimeString() + '</li>'}})">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'',data:'<li data-swap=\'append:#swap-list\'>Appended at ' + new Date().toLocaleTimeString() + '</li>'}})">
             Append item
           </button>
-          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<li data-swap=\'prepend:#swap-list\'>Prepended at ' + new Date().toLocaleTimeString() + '</li>'}})">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'',data:'<li data-swap=\'prepend:#swap-list\'>Prepended at ' + new Date().toLocaleTimeString() + '</li>'}})">
             Prepend item
           </button>
         </div>
@@ -354,10 +354,10 @@
           #skip-target — original
         </div>
         <div class="row">
-          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<div id=\'skip-target\' data-swap=\'none\'>This would replace (but is skipped)</div>'}})">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'',data:'<div id=\'skip-target\' data-swap=\'none\'>This would replace (but is skipped)</div>'}})">
             Send with data-swap="none" (no change)
           </button>
-          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'', html:'<div id=\'skip-target\' style=\'padding:.5rem;border-radius:4px\'>#skip-target — swapped</div>'}})">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles:true,detail:{url:'',data:'<div id=\'skip-target\' style=\'padding:.5rem;border-radius:4px\'>#skip-target — swapped</div>'}})">
             Send without data-swap (replaces)
           </button>
         </div>
@@ -453,7 +453,7 @@
             <button data-init on:click="$status='fetching…'; @get('index.html')">
               @get('index.html')
             </button>
-            <button data-init on:click="$status='fetching…'; @get('/404.html')">
+            <button data-init on:click="$status='fetching…'; @get('/404.html')" on:ssr:response="$status = evt.detail.response.statusText">
               @get('/does-not-exist-404')
             </button>
           </div>

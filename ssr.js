@@ -111,53 +111,48 @@
    * @returns {Promise<Response|null>}
    */
   async function fetch($n, url, o = {}) {
-    for (const c of ($n._C ??= {})[url] ?? []) c()
-    const ac = new AbortController()
-    $n._C[url] = [() => ac.abort()]
-
-    const u = new URL(url.replace(/\#.*/, ''), L.href)
-    if (o.search) toParams(o.search, u.searchParams)
-
-    const $h = $($d.head, 'meta[name=ssr-headers]')
-    const qh = $h ? fn($h, `return {${$h.content}}`)() : {}
-    o.headers = toParams(qh, o.headers ?? new Headers())
-
     try {
-      const r = await $w.fetch(u, {...o, signal: ac.signal})
+      for (const c of ($n._C ??= {})[url] ?? []) c()
+      const ac = new AbortController()
+      $n._C[url] = [() => ac.abort()]
+
+      const u = new URL(url.replace(/\#.*/, ''), L.href)
+      if (o.search) toParams(o.search, u.searchParams)
+
+      const $h = $($d.head, 'meta[name=ssr-headers]')
+      const headers = toParams($h ? fn($h, `return {${$h.content}}`)() : {}, o.headers ?? new Headers())
+      const r = await $w.fetch(u, {...o, headers, signal: ac.signal})
       const ct = r.headers.get('content-type') ?? ''
       if (ct.startsWith('text/html')) {
-        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {html: await r.text(), response: r, url}})
-      } else if (ct.match(/\/json\b/)) {
-        dispatch($n, 'ssr:sse-message', {bubbles: true, detail: {data: await r.json(), response: r, url}})
+        dispatch($n, 'ssr:sse-patch-elements', {bubbles: true, detail: {data: await r.text(), url}})
+      } else if (ct.match(/\bjson\b/)) {
+        dispatch($n, 'ssr:sse-message', {bubbles: true, detail: {data: await r.text(), url}})
       } else if (ct == 'text/event-stream') {
-        const decoder = new TextDecoder('utf-8')
-        const reader = r.body.getReader()
-        let buf = '', detail = {}
+        const decoder = new TextDecoder('utf-8'), reader = r.body.getReader()
+        let buf = '', sse = {}
         for (;;) {
           const {done, value} = await reader.read()
           if (done) break
           buf += decoder.decode(value, {stream: true})
-          for (;;) {
-            const i = buf.indexOf('\n')
-            if (i < 0) break
+          for (let i; (i = buf.indexOf('\n')) >= 0;) {
             if (i) {
               const [k, v] = buf.replace(/\r/g, '').slice(0, i).split(/:\s/, 2)
-              detail[k] ??= ''
-              detail[k] += v
+              sse[k] ??= ''
+              sse[k] += v
             } else {
-              detail.url = url
-              dispatch($n, 'ssr:sse-' + detail.event, {detail})
-              detail = {}
+              dispatch($n, 'ssr:sse-' + sse.event, {bubbles: true, detail: {data: sse.data, url}})
+              sse = {}
             }
             buf = buf.slice(i + 1)
           }
         }
       } else {
-        dispatch($n, `ssr:${ct.split(';', 1)[0].replace(/\//g, 'g')}`, {bubbles: true, detail: {response: r, url}})
+        dispatch($n, 'ssr:response', {bubbles: true, detail: {response: r, url}})
       }
+
       return r
     } catch (error) {
-      if (error.name != 'AbortError') dispatch($n, 'ssr:sse-error', {bubbles: true, detail: {error, options: o, url}})
+      if (error.name != 'AbortError') dispatch($n, 'ssr:error', {bubbles: true, detail: {error, options: o, url}})
       return null
     }
   }
@@ -248,7 +243,7 @@
     return o
   }
 
-  listen($w, $w, 'ssr:sse-error', ({detail: {options: o, url}, defaultPrevented: d, target}) => {
+  listen($w, $w, 'ssr:error', ({detail: {options: o, url}, defaultPrevented: d, target}) => {
     if (!d && o.method == 'GET') setTimeout(() => target.parentNode && fetch(target, url, o), 3000)
   })
 
@@ -285,7 +280,7 @@
         }
 
         $n._S = new Proxy($n.id ? (STORES[$n.id] ??= {}) : {}, {
-          get: (d, k) => k == '_M' ? m : d[k],
+          get: (d, k, r) => k == '_M' ? m : Reflect.get(d, k, r),
           set: (d, k, v) => {
             if (k == '_M' || (m.ro && !Object.hasOwn(d, k))) return false
             if (!m.ro || d[k] !== v) { d[k] = v; m.touch(k) }
@@ -359,7 +354,7 @@
 
   /**
    * Listens for the 'ssr:sse-patch-elements' event on the window element,
-   * parses the text as html and updates the DOM.
+   * parses the `data` as html and updates the DOM.
    * When the 'ssr:sse-patch-elements' event is triggered, it checks if
    * the provided HTML data contains a `<body>` tag. If it does, it
    * replaces the entire body content with the new content while
@@ -369,12 +364,11 @@
    * and style elements and `data-swap` attributes to determine how to
    * swap elements in the DOM.
    */
-  listen($w, $w, 'ssr:sse-patch-elements', ({detail: {html, url}}) => {
+  listen($w, $w, 'ssr:sse-patch-elements', ({detail: {data, url}}) => {
     if (!I) I = $w.Idiomorph
-    if (!html) return
-    url = url?.toString() ?? ''
-    if (html.lastIndexOf('<body', 4096) != -1) {
-      const $p = new DOMParser().parseFromString(html, 'text/html')
+    if (!data) return
+    if (data.lastIndexOf('<body', 4096) != -1) {
+      const $p = new DOMParser().parseFromString(data, 'text/html')
       let $c
       $($d, '[data-owner]', ($c) => $c.remove())
       destroy($d.body)
@@ -385,7 +379,7 @@
       if (($c = $($p, 'body'))) $d.body.innerHTML = $c.innerHTML
       if (L.hash) $($d, L.hash, el => el.scrollIntoView({behavior: 'auto'}))
     } else {
-      const $p = $d.createRange().createContextualFragment(html)
+      const $p = $d.createRange().createContextualFragment(data)
       if (url.length) $($d, `[data-owner="${url}"]`, ($c) => $c.remove())
       scriptAndStyle($p, url)
       $($d, '[data-preserve=always]', ($c) => $($p, `#${$c.id}`, ($i) => $i.replaceWith($c.cloneNode(true))))
