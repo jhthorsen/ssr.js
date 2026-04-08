@@ -278,6 +278,7 @@
           })
         }
 
+        const has = $n.id && STORES[$n.id]
         $n._S = new Proxy($n.id ? (STORES[$n.id] ??= {}) : {}, {
           get: (d, k, r) => k == '_M' ? m : Reflect.get(d, k, r),
           set: (d, k, v) => {
@@ -286,7 +287,7 @@
             return true
           }
         })
-        fn($n, ds.store)()
+        if (!has) fn($n, ds.store)()
       }
 
       // Looks for a store on the parent element, making it possible to

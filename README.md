@@ -32,15 +32,15 @@ Each commit messages should contain the latest size, but below is just to give a
 ```sh
 # ssr.js
 $ sed -E s:.*// .*$::; s:^[ ]*/?\*.*::g; s:^[ ]*:: ssr.js
-     272    1322    8992
+     261    1270    8559
 $ gzip -ck9 -
-    3516
+    3345
 $ brotli -ckq 6 -
-    3331
+    3178
 $ uglifyjs -m properties,toplevel ssr.js
-    3141
+    3015
 $ uglifyjs -m properties,toplevel ssr.js
-    2963
+    2840
 
 # datastar and htmx
 $ curl -L https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles/datastar.js | wc -c
@@ -62,7 +62,7 @@ There are some special syntax and variables for the attribute below that can run
 
 ### data-store
 
-`data-store` creates a new isolated reactive store for an element and its children. The value is JavaScript code that initializes the store using the `$variable=...` syntax. Elements without `data-store` inherit the nearest ancestor's store and the `body` element always has a store that is persisted between swaps. In many cases, this is all you need, if you have good variable names. The store will persist between swaps, if the element also has an `id` attribute.
+`data-store` creates a new isolated reactive store for an element and its children. The value is JavaScript code that initializes the store using the `$variable=...` syntax. Elements without `data-store` inherit the nearest ancestor's store and the `body` element always has a store that is persisted between swaps. In many cases, this is all you need, if you have good variable names. The store will persist between swaps, if the element also has an `id` attribute, meaning you have to reset variables in `data-init` if that is desired.
 
 Reactive variables *must* be defined in either `data-store` or `data-init`. Trying to define a reactive variable later on, will result in an error.
 
