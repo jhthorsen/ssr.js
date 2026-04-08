@@ -436,10 +436,10 @@
       r.headers = new Headers()
       r.headers.append('content-type', t)
       r.body = t == c ? new URLSearchParams(b) : b
-      H[m]({}, null, $n.action)
+      if (m != 'none') H[m]({}, null, $n.action)
     } else {
       for (const [k, v] of b.entries()) u.searchParams.append(k, v)
-      H[m]({}, null, u.toString())
+      if (m != 'none') H[m]({}, null, u.toString())
     }
 
     const $s = evt.submitter

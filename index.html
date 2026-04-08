@@ -436,9 +436,9 @@
       <h3>Form — GET / POST</h3>
       <div class="demo" data-init="$method='POST'">
         <p class="hint">Submitting this form POSTs and swaps the response.</p>
-        <form data-effect="el.action=`${$method}.html`;el.method=$method">
+        <form data-effect="el.action=`${$method}.html`;el.method=$method" data-history="none">
           <fieldset role="group">
-            <select data-bind="method"><option value="post">POST</option><option value="get">GET</option></select>
+            <select data-bind="method"><option value="get">GET</option><option value="post">POST</option></select>
             <button type="submit">Send</button>
           </fieldset>
         </form>
