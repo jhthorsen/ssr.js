@@ -14,6 +14,7 @@ This project is especially suitable for backend developers, that does not want t
 <ul>
   <li><a href="https://htmlpreview.github.io/?https://github.com/jhthorsen/ssr.js/blob/main/index.html">Demo</a></li>
   <li><a href="#size-matter">Size matter</a></li>
+  <li><a href="#usage">Usage</a></li>
   <li><a href="#data-attributes">Data-attributes</a></li>
   <li><a href="#at-functions">At-functions - @foo()</a></li>
   <li><a href="#events">Events</a></li>
@@ -47,6 +48,29 @@ $ curl -L https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles
    30643
 $ curl https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js | wc -c
    51076
+```
+
+## Usage
+
+### Quick start
+
+Place one of the following `<script>` tags before the closing `</body>` tag, or somewhere at the end of you markup.
+
+```html
+<!-- The "main" branch can have breaking changes -->
+<script src="https://cdn.jsdelivr.net/gh/jhthorsen/ssr.js@main/ssr.js"></script>
+<!-- Instead a given stable commit can be used -->
+<script src="https://cdn.jsdelivr.net/gh/jhthorsen/ssr.js@e75a1a770af68040aa546cbd36fad35265ff954e/ssr.js"></script>
+```
+
+### Idiomorph
+
+[Idiomorph](https://github.com/bigskysoftware/idiomorph) is a JavaScript library for morphing one DOM tree to another. It makes replacing nodes slower, but it makes the user experience much better: For example, text selection and focused input are remembered.
+
+```html
+<!-- Make sure you are using the correct version of idiomorph -->
+<script src="https://unpkg.com/idiomorph@0.7.4"></script>
+<script src="https://cdn.jsdelivr.net/gh/jhthorsen/ssr.js@main/ssr.js"></script>
 ```
 
 ## Data-attributes
