@@ -85,7 +85,6 @@ Two-way bindings are available by setting `data-bind`. The variable defined will
 
 ```html
 <input data-bind="$a">
-<input data-bind="$a" data-effect="@use(['a']) && @debounce(someCallback, 200)">
 <div data-store="$x=new Set()">
   <input type="checkbox" data-bind="$x" value="42"/>
   <input type="checkbox" data-bind="$x" value="24"/>
@@ -94,12 +93,10 @@ Two-way bindings are available by setting `data-bind`. The variable defined will
 
 ### data-effect
 
-The `data-effect` expression will be called when any variable inside is changed, or [@use](#%40use) can used to specify which variables to watch.
+The `data-effect` expression will be called when any variable inside is changed. Note that `data-effect` expressions with side effects (`$a+=2`) are not fully supported, though it works in many cases.
 
 ```html
 <div data-store="$a=4">
-  <!-- binds to whenever $a changes -->
-  <input type="text" data-effect="@use(['a']) && alert($a)" on:input="$a=evt.value.toUpperCase()"/>
   <!-- same, but does so by looking at the expression -->
   <!-- the variable names cannot be prefixed with "$"! -->
   <input type="text" data-effect="alert($a)" on:input="$a=evt.value.toUpperCase()"/>
@@ -251,10 +248,6 @@ Sets a value at an index in a store array and triggers a re-render.
   <button data-init on:click="@set('items', 0, 'changed')">Change first</button>
 </div>
 ```
-
-### @use
-
-See [data-effect](#data-effect).
 
 ## Events
 

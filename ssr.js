@@ -166,15 +166,15 @@
    * @param {Function} [t=(b)=>b] - Transform function.
    * @returns {Function|undefined} - Generated function.
    */
-  function fn($n, b, t = (b) => b) {
-    const bt = t(b)
+  function fn($n, b) {
+    b = b
       .replace(/\$(\w+)\b/g, 'store.$1')
       .replace(/\@(debounce)\(/g, '__at.$1(el.id||"default",el,()=>')
       .replace(/\@(get|listen|post|set)\(/g, '__at.$1(el,')
       .replace(/\@(dispatch|fetch)\b/g, '__at.$1')
 
     try {
-      const cb = new Function('$', 'el', 'store', '__at', 'evt', bt)
+      const cb = new Function('$', 'el', 'store', '__at', 'evt', b)
       return (e) => cb($, $n, $n._S, at, e)
     } catch (error) {
       console.error(error, $n, b)
@@ -268,7 +268,6 @@
        */
       if (ds.store) {
         const m = new Set()
-        m.touched = (ks) => ks.some(k => m.has(k))
         m.touch = (k) => {
           m.add(k)
           m.l ??= $w.requestAnimationFrame(() => {
@@ -336,18 +335,9 @@
 
       // Run effects
       if (ds.effect) {
-        /**
-         * Effect callback for rendering.
-         * @type {Function}
-         */
-        const cb = fn($n, ds.effect, (x) => {
-          const u = x.replaceAll(/@use\(/g, 'el._S._M.touched(')
-          if (u !== x) return u
-          const ks = Array.from(x.matchAll(/\$(\w+)\b\s*(?!=)/g), (m) => `'${m[1]}'`).join(',')
-          return `if(el._S._M.touched([${ks}])){${x};}`
-        })
-
-        listen($n, $n, 'ssr:render', cb)
+        const f = fn($n, ds.effect)
+        listen($n, $n, 'ssr:render', f)
+        f()
       }
     })
   })

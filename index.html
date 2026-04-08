@@ -98,22 +98,6 @@
     <section id="effects">
       <h2>Effects (data-effect)</h2>
 
-      <h3>Selective reactivity with @use</h3>
-      <div class="demo">
-        <p class="hint">
-          Without @use, an effect reruns whenever any <code>$variable</code> it reads changes.
-          <code>@use(['key'])</code> restricts reruns to listed keys only.
-        </p>
-        <div data-store="$a=0; $b=0; $runsAB=0; $runsB=0">
-          <div class="row">
-            <button data-init on:click="$a++">Increment A (<span data-effect="el.textContent=$a"></span>)</button>
-            <button data-init on:click="$b++">Increment B (<span data-effect="el.textContent=$b"></span>)</button>
-          </div>
-          <p data-effect="$runsAB++; el.textContent = 'Watches $a and $b — ran ' + $runsAB + ' time(s)'"></p>
-          <p data-effect="@use(['b']) && ($runsB++) && (el.textContent = 'Watches $b only — ran ' + $runsB + ' time(s)')"></p>
-        </div>
-      </div>
-
       <h3>Computed / derived values</h3>
       <div class="demo">
         <p class="hint">Derive values from multiple store keys in a single effect.</p>
@@ -363,7 +347,7 @@
         </div>
       </div>
 
-      <!-- h3>ssr:init re-fires — swapped content is immediately reactive</h3>
+      <h3>ssr:init re-fires — swapped content is immediately reactive</h3>
       <div class="demo">
         <p class="hint">
           ssr:init fires after every swap. Freshly inserted elements with data-store / data-effect
@@ -373,16 +357,14 @@
           <em>(swap in a reactive counter)</em>
         </div>
         <div class="row">
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:sse-patch-elements', {detail:{url:'',
-            html:'<div id=\'reactive-swap-target\' data-store=\'$r=0\' style=\'display:flex;gap:.5rem;align-items:center\'><button on:click=\'$r++\'>+</button><strong data-effect=\'el.textContent=$r\'></strong> clicks</div>'}}))">
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles: true,detail:{url:'',data:'<div id=\'reactive-swap-target\' data-store=\'$r=0\' style=\'display:flex;gap:.5rem;align-items:center\'><button data-init on:click=\'$r++\'>+</button><strong data-effect=\'el.textContent=$r\'></strong> clicks</div>'}})">
             Swap in counter
           </button>
-          <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:sse-patch-elements', {detail:{url:'',
-            html:'<div id=\'reactive-swap-target\'><em>(swap in a reactive counter)</em></div>'}}))">
-            Reset
+          <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles: true,detail:{url:'',data:'<div id=\'reactive-swap-target\'><em>(swap in a reactive counter)</em></div>'}})">
+            Clear
           </button>
         </div>
-      </div -->
+      </div>
 
       <!-- h3>data-preserve — survive a full-page swap</h3>
       <div class="demo">
@@ -397,8 +379,7 @@
           <button data-init on:click="$t++">Tick</button>
         </div>
         <br>
-        <button data-init on:click="document.dispatchEvent(new CustomEvent('ssr:sse-patch-elements', {detail:{url:'',
-          html:'<!DOCTYPE html><html><head><title>After full-page swap</title></head><body><main class=\'container\' style=\'padding:2rem\'><h1>Full &lt;body&gt; was swapped!</h1><div id=\'preserved-counter\'></div><p><a href=\'index.html\'>\u2190 back to examples</a></p></main><script src=\'./ssr.js\'><\/script></body></html>'}}))">
+        <button data-init on:click="@dispatch(el, 'ssr:sse-patch-elements', {bubbles: true,detail:{url:'',data:'<!DOCTYPE html><html><head><title>After full-page swap</title></head><body><main class=\'container\' style=\'padding:2rem\'><h1>Full &lt;body&gt; was swapped!</h1><div id=\'preserved-counter\'></div><p><a href=\'index.html\'>\u2190 back to examples</a></p></main><script src=\'./ssr.js\'><\/script></body></html>'}})">
           Trigger full-page swap (counter survives)
         </button>
       </div>
