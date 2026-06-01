@@ -448,7 +448,7 @@
    */
   listen($w, $w, 'popstate', () => {
     const O = L
-    L = location
+    L = new URL(location.href)
     if (O.pathname == L.pathname && O.search == L.search) return
     fetch($d.body, L.pathname + L.search, {})
   })
@@ -457,4 +457,4 @@
   // to initialize the application.
   if (!$d.body.dataset.store) $d.body.dataset.store = '$root=true'
   dispatch($d, 'ssr:init')
-})(window, document, history, window.Idiomorph, location)
+})(window, document, history, window.Idiomorph, new URL(location.href))
