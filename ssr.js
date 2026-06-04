@@ -419,7 +419,10 @@
     const $n = evt.target?.closest('form')
     if (evt.defaultPrevented || !$n || $n.target.startsWith('_')) return // _blank, _top, _self, ...
 
-    const [u, b, r] = [new URL($n.action, L.href), new FormData($n), {method: $n.method}]
+    const [u, b, r] = [new URL($n.getAttribute('action'), L.href), new FormData($n), {method: $n.method}]
+    const $s = evt.submitter
+    if ($s.name) b.append($s.name, $s.value)
+
     const m = $n.dataset.history || 'pushState'
     if (r.method.toLowerCase() == 'post') {
       const c = 'application/x-www-form-urlencoded'
@@ -427,13 +430,11 @@
       r.headers = new Headers()
       r.headers.append('content-type', t)
       r.body = t == c ? new URLSearchParams(b) : b
-      if (m != 'none') H[m]({}, null, $n.action)
     } else {
       for (const [k, v] of b.entries()) u.searchParams.append(k, v)
-      if (m != 'none') H[m]({}, null, u.toString())
     }
 
-    const $s = evt.submitter
+    if (m != 'none') H[m]({}, null, u.toString())
     if ($s) $s.ariaBusy = 'true'
     evt.preventDefault()
     fetch($d.body, u.toString(), r).finally(() => {
